@@ -66,10 +66,7 @@ end
     retrieve the nasa polynomial corresponding to the T range
     """
     for p in nasa.polys
-        for p in nasa.polys
-            ifelse(T<=p.Tmax,return p)
-        end
-        return nasa.polys[end]
+        ifelse(T<=p.Tmax,return p)
     end
     return nasa.polys[end]
 end
