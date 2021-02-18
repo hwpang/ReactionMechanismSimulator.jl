@@ -49,7 +49,7 @@ function Reactor(domains::T,y0s::W,tspan::W2,interfaces::Z=[],ps::X=DiffEqBase.N
     for (j,domain) in enumerate(domains)
         Nspcs = length(domain.phase.species)
         Ntherm = length(domain.indexes) - 2
-        for i = 1:6, j = 1:size(domain.rxnarray)[2]
+        for i = 1:8, j = 1:size(domain.rxnarray)[2]
             if domain.rxnarray[i,j] != 0
                 domain.rxnarray[i,j] += k-1
             end
@@ -127,6 +127,8 @@ export Reactor
         @fastmath @inbounds R += kfs[rxn.index]*cs[rxn.reactantinds[1]]*cs[rxn.reactantinds[2]]
     elseif Nreact == 3
         @fastmath @inbounds R += kfs[rxn.index]*cs[rxn.reactantinds[1]]*cs[rxn.reactantinds[2]]*cs[rxn.reactantinds[3]]
+    elseif Nreact == 4
+        @fastmath @inbounds R += kfs[rxn.index]*cs[rxn.reactantinds[1]]*cs[rxn.reactantinds[2]]*cs[rxn.reactantinds[3]]*cs[rxn.reactantinds[4]]
     end
 
     if Nprod == 1
@@ -135,6 +137,8 @@ export Reactor
         @fastmath @inbounds R -= krevs[rxn.index]*cs[rxn.productinds[1]]*cs[rxn.productinds[2]]
     elseif Nprod == 3
         @fastmath @inbounds R -= krevs[rxn.index]*cs[rxn.productinds[1]]*cs[rxn.productinds[2]]*cs[rxn.productinds[3]]
+    elseif Nprod == 4
+        @fastmath @inbounds R -= krevs[rxn.index]*cs[rxn.productinds[1]]*cs[rxn.productinds[2]]*cs[rxn.productinds[3]]*cs[rxn.productinds[4]]
     end
 
     return R
@@ -147,15 +151,19 @@ export getrate
             @inbounds @fastmath fR = kfs[i]*cs[rarray[1,i]]
         elseif @inbounds rarray[3,i] == 0
             @inbounds @fastmath fR = kfs[i]*cs[rarray[1,i]]*cs[rarray[2,i]]
-        else
+        elseif @inbounds rarray[4,i] == 0 
             @inbounds @fastmath fR = kfs[i]*cs[rarray[1,i]]*cs[rarray[2,i]]*cs[rarray[3,i]]
-        end
-        if @inbounds rarray[5,i] == 0
-            @inbounds @fastmath rR = krevs[i]*cs[rarray[4,i]]
-        elseif @inbounds rarray[6,i] == 0
-            @inbounds @fastmath rR = krevs[i]*cs[rarray[4,i]]*cs[rarray[5,i]]
         else
-            @inbounds @fastmath rR = krevs[i]*cs[rarray[4,i]]*cs[rarray[5,i]]*cs[rarray[6,i]]
+            @inbounds @fastmath fR = kfs[i]*cs[rarray[1,i]]*cs[rarray[2,i]]*cs[rarray[3,i]]*cs[rarray[4,i]] 
+        end
+        if @inbounds rarray[6,i] == 0
+            @inbounds @fastmath rR = krevs[i]*cs[rarray[5,i]]
+        elseif @inbounds rarray[7,i] == 0
+            @inbounds @fastmath rR = krevs[i]*cs[rarray[5,i]]*cs[rarray[6,i]]
+        elseif @inbounds rarray[8,i] == 0
+            @inbounds @fastmath rR = krevs[i]*cs[rarray[5,i]]*cs[rarray[6,i]]*cs[rarray[7,i]]
+        else
+            @inbounds @fastmath rR = krevs[i]*cs[rarray[5,i]]*cs[rarray[6,i]]*cs[rarray[7,i]]*cs[rarray[8,i]]
         end
         @fastmath R = fR - rR
         @inbounds @fastmath dydt[rarray[1,i]] -= R
@@ -163,13 +171,19 @@ export getrate
             @inbounds @fastmath dydt[rarray[2,i]] -= R
             if @inbounds rarray[3,i] != 0
                 @inbounds @fastmath dydt[rarray[3,i]] -= R
+                if @inbounds rarray[4,i] != 0
+                    @inbounds @fastmath dydt[rarray[4,i]] -= R
+                end
             end
         end
-        @inbounds @fastmath dydt[rarray[4,i]] += R
-        if @inbounds rarray[5,i] != 0
-            @inbounds @fastmath dydt[rarray[5,i]] += R
-            if @inbounds rarray[6,i] != 0
-                @inbounds @fastmath dydt[rarray[6,i]] += R
+        @inbounds @fastmath dydt[rarray[5,i]] += R
+        if @inbounds rarray[6,i] != 0
+            @inbounds @fastmath dydt[rarray[6,i]] += R
+            if @inbounds rarray[7,i] != 0
+                @inbounds @fastmath dydt[rarray[7,i]] += R
+                if @inbounds rarray[8,i] != 0
+                    @inbounds @fastmath dydt[rarray[8 ,i]] += R
+                end
             end
         end
     end
@@ -326,11 +340,14 @@ end
 export jacobianp
 
 @inline function _spreadreactantpartials!(jac::S,deriv::Float64,rxnarray::Array{Int64,2},rxnind::Int64,ind::Int64) where {S<:AbstractArray}
-    @inbounds jac[rxnarray[4,rxnind],ind] += deriv
-    if @inbounds rxnarray[5,rxnind] !== 0
-        @inbounds jac[rxnarray[5,rxnind],ind] += deriv
-        if @inbounds rxnarray[6,rxnind] !== 0
-            @inbounds jac[rxnarray[6,rxnind],ind] += deriv
+    @inbounds jac[rxnarray[5,rxnind],ind] += deriv
+    if @inbounds rxnarray[6,rxnind] !== 0
+        @inbounds jac[rxnarray[6,rxnind],ind] += deriv
+        if @inbounds rxnarray[7,rxnind] !== 0
+            @inbounds jac[rxnarray[7,rxnind],ind] += deriv
+            if @inbounds rxnarray[8,rxnind] !== 0
+                @inbounds jac[rxnarray[8,rxnind],ind] += deriv
+            end
         end
     end
 end
@@ -340,6 +357,9 @@ end
         @inbounds jac[rxnarray[2,rxnind],ind] += deriv
         if @inbounds rxnarray[3,rxnind] !== 0
             @inbounds jac[rxnarray[3,rxnind],ind] += deriv
+            if @inbounds rxnarray[4,rxnind] !== 0
+                @inbounds jac[rxnarray[4,rxnind],ind] += deriv
+            end
         end
     end
 end
@@ -365,7 +385,7 @@ end
             @inbounds jac[rxnarray[2,rxnind],rxnarray[2,rxnind]] -= deriv
             @inbounds _spreadreactantpartials!(jac,deriv,rxnarray,rxnind,rxnarray[2,rxnind])
         end
-    else
+    elseif rxnarray[4,rxnind] == 0 
         if rxnarray[1,rxnind]==rxnarray[2,rxnind] && rxnarray[1,rxnind]==rxnarray[3,rxnind]
             @inbounds @fastmath deriv = 3.0*k*cs[rxnarray[1,rxnind]]*cs[rxnarray[1,rxnind]]
             @inbounds jac[rxnarray[1,rxnind],rxnarray[1,rxnind]] -= 3.0*deriv
@@ -414,75 +434,401 @@ end
             @inbounds jac[rxnarray[3,rxnind],rxnarray[3,rxnind]] -= deriv
             @inbounds _spreadreactantpartials!(jac,deriv,rxnarray,rxnind,rxnarray[3,rxnind])
         end
+    else
+        if rxnarray[1,rxnind]==rxnarray[2,rxnind] && rxnarray[1,rxnind]==rxnarray[3,rxnind] && rxnarray[1,rxnind]==rxnarray[4,rxnind]
+            @inbounds @fastmath deriv = 4.0*k*cs[rxnarray[1,rxnind]]*cs[rxnarray[1,rxnind]]*cs[rxnarray[1,rxnind]]
+            @inbounds jac[rxnarray[1,rxnind],rxnarray[1,rxnind]] -= 4.0*deriv
+            @inbounds _spreadreactantpartials!(jac,deriv,rxnarray,rxnind,rxnarray[1,rxnind])
+        elseif rxnarray[1,rxnind]==rxnarray[2,rxnind] && rxnarray[1,rxnind]==rxnarray[3,rxnind] 
+            @inbounds @fastmath deriv = 3.0*k*cs[rxnarray[1,rxnind]]*cs[rxnarray[1,rxnind]]*cs[rxnarray[4,rxnind]]
+            @inbounds jac[rxnarray[1,rxnind],rxnarray[1,rxnind]] -= 3.0*deriv
+            @inbounds jac[rxnarray[4,rxnind],rxnarray[1,rxnind]] -= deriv
+            @inbounds _spreadreactantpartials!(jac,deriv,rxnarray,rxnind,rxnarray[1,rxnind])
+            @inbounds @fastmath deriv = k*cs[rxnarray[1,rxnind]]*cs[rxnarray[1,rxnind]]*cs[rxnarray[1,rxnind]]
+            @inbounds jac[rxnarray[1,rxnind],rxnarray[4,rxnind]] -= 3.0*deriv
+            @inbounds jac[rxnarray[4,rxnind],rxnarray[4,rxnind]] -= deriv
+            @inbounds _spreadreactantpartials!(jac,deriv,rxnarray,rxnind,rxnarray[4,rxnind])
+        elseif rxnarray[1,rxnind]==rxnarray[3,rxnind] && rxnarray[1,rxnind]==rxnarray[4,rxnind]
+            @inbounds @fastmath deriv = 3.0*k*cs[rxnarray[1,rxnind]]*cs[rxnarray[1,rxnind]]*cs[rxnarray[2,rxnind]]
+            @inbounds jac[rxnarray[1,rxnind],rxnarray[1,rxnind]] -= 3.0*deriv
+            @inbounds jac[rxnarray[2,rxnind],rxnarray[1,rxnind]] -= deriv
+            @inbounds _spreadreactantpartials!(jac,deriv,rxnarray,rxnind,rxnarray[1,rxnind])
+            @inbounds @fastmath deriv = k*cs[rxnarray[1,rxnind]]*cs[rxnarray[1,rxnind]]*cs[rxnarray[1,rxnind]]
+            @inbounds jac[rxnarray[1,rxnind],rxnarray[2,rxnind]] -= 3.0*deriv
+            @inbounds jac[rxnarray[2,rxnind],rxnarray[2,rxnind]] -= deriv
+            @inbounds _spreadreactantpartials!(jac,deriv,rxnarray,rxnind,rxnarray[2,rxnind])
+        elseif rxnarray[1,rxnind]==rxnarray[2,rxnind] && rxnarray[1,rxnind]==rxnarray[4,rxnind]
+            @inbounds @fastmath deriv = 3.0*k*cs[rxnarray[1,rxnind]]*cs[rxnarray[1,rxnind]]*cs[rxnarray[3,rxnind]]
+            @inbounds jac[rxnarray[1,rxnind],rxnarray[1,rxnind]] -= 3.0*deriv
+            @inbounds jac[rxnarray[3,rxnind],rxnarray[1,rxnind]] -= deriv
+            @inbounds _spreadreactantpartials!(jac,deriv,rxnarray,rxnind,rxnarray[1,rxnind])
+            @inbounds @fastmath deriv = k*cs[rxnarray[1,rxnind]]*cs[rxnarray[1,rxnind]]*cs[rxnarray[1,rxnind]]
+            @inbounds jac[rxnarray[1,rxnind],rxnarray[3,rxnind]] -= 3.0*deriv
+            @inbounds jac[rxnarray[3,rxnind],rxnarray[3,rxnind]] -= deriv
+            @inbounds _spreadreactantpartials!(jac,deriv,rxnarray,rxnind,rxnarray[3,rxnind])
+        elseif rxnarray[2,rxnind]==rxnarray[3,rxnind] && rxnarray[2,rxnind]==rxnarray[4,rxnind]
+            @inbounds @fastmath deriv = k*cs[rxnarray[2,rxnind]]*cs[rxnarray[2,rxnind]]*cs[rxnarray[2,rxnind]]
+            @inbounds jac[rxnarray[1,rxnind],rxnarray[1,rxnind]] -= deriv
+            @inbounds jac[rxnarray[2,rxnind],rxnarray[1,rxnind]] -= 3.0*deriv
+            @inbounds _spreadreactantpartials!(jac,deriv,rxnarray,rxnind,rxnarray[1,rxnind])
+            @inbounds @fastmath deriv = 3.0*k*cs[rxnarray[1,rxnind]]*cs[rxnarray[2,rxnind]]*cs[rxnarray[2,rxnind]]
+            @inbounds jac[rxnarray[1,rxnind],rxnarray[2,rxnind]] -= deriv
+            @inbounds jac[rxnarray[2,rxnind],rxnarray[2,rxnind]] -= 3.0*deriv
+            @inbounds _spreadreactantpartials!(jac,deriv,rxnarray,rxnind,rxnarray[2,rxnind])
+        elseif rxnarray[1,rxnind]==rxnarray[2,rxnind]
+            @inbounds @fastmath deriv = 2.0*k*cs[rxnarray[1,rxnind]]*cs[rxnarray[3,rxnind]]*cs[rxnarray[4,rxnind]]
+            @inbounds jac[rxnarray[1,rxnind],rxnarray[1,rxnind]] -= 2.0*deriv
+            @inbounds jac[rxnarray[3,rxnind],rxnarray[1,rxnind]] -= deriv
+            @inbounds jac[rxnarray[4,rxnind],rxnarray[1,rxnind]] -= deriv
+            @inbounds _spreadreactantpartials!(jac,deriv,rxnarray,rxnind,rxnarray[1,rxnind])
+            @inbounds @fastmath deriv = k*cs[rxnarray[1,rxnind]]*cs[rxnarray[1,rxnind]]*cs[rxnarray[4,rxnind]]
+            @inbounds jac[rxnarray[1,rxnind],rxnarray[3,rxnind]] -= 2.0*deriv
+            @inbounds jac[rxnarray[3,rxnind],rxnarray[3,rxnind]] -= deriv
+            @inbounds jac[rxnarray[4,rxnind],rxnarray[3,rxnind]] -= deriv
+            @inbounds _spreadreactantpartials!(jac,deriv,rxnarray,rxnind,rxnarray[3,rxnind])
+            @inbounds @fastmath deriv = k*cs[rxnarray[1,rxnind]]*cs[rxnarray[1,rxnind]]*cs[rxnarray[3,rxnind]]
+            @inbounds jac[rxnarray[1,rxnind],rxnarray[4,rxnind]] -= 2.0*deriv
+            @inbounds jac[rxnarray[3,rxnind],rxnarray[4,rxnind]] -= deriv
+            @inbounds jac[rxnarray[4,rxnind],rxnarray[4,rxnind]] -= deriv
+            @inbounds _spreadreactantpartials!(jac,deriv,rxnarray,rxnind,rxnarray[4,rxnind])
+        elseif rxnarray[1,rxnind]==rxnarray[3,rxnind]
+            @inbounds @fastmath deriv = 2.0*k*cs[rxnarray[1,rxnind]]*cs[rxnarray[2,rxnind]]*cs[rxnarray[4,rxnind]]
+            @inbounds jac[rxnarray[1,rxnind],rxnarray[1,rxnind]] -= 2.0*deriv
+            @inbounds jac[rxnarray[2,rxnind],rxnarray[1,rxnind]] -= deriv
+            @inbounds jac[rxnarray[4,rxnind],rxnarray[1,rxnind]] -= deriv
+            @inbounds _spreadreactantpartials!(jac,deriv,rxnarray,rxnind,rxnarray[1,rxnind])
+            @inbounds @fastmath deriv = k*cs[rxnarray[1,rxnind]]*cs[rxnarray[1,rxnind]]*cs[rxnarray[4,rxnind]]
+            @inbounds jac[rxnarray[1,rxnind],rxnarray[2,rxnind]] -= 2.0*deriv
+            @inbounds jac[rxnarray[2,rxnind],rxnarray[2,rxnind]] -= deriv
+            @inbounds jac[rxnarray[4,rxnind],rxnarray[2,rxnind]] -= deriv
+            @inbounds _spreadreactantpartials!(jac,deriv,rxnarray,rxnind,rxnarray[2,rxnind])
+            @inbounds @fastmath deriv = k*cs[rxnarray[1,rxnind]]*cs[rxnarray[1,rxnind]]*cs[rxnarray[2,rxnind]]
+            @inbounds jac[rxnarray[1,rxnind],rxnarray[4,rxnind]] -= 2.0*deriv
+            @inbounds jac[rxnarray[2,rxnind],rxnarray[4,rxnind]] -= deriv
+            @inbounds jac[rxnarray[4,rxnind],rxnarray[4,rxnind]] -= deriv
+            @inbounds _spreadreactantpartials!(jac,deriv,rxnarray,rxnind,rxnarray[4,rxnind])
+        elseif rxnarray[1,rxnind]==rxnarray[4,rxnind]
+            @inbounds @fastmath deriv = 2.0*k*cs[rxnarray[1,rxnind]]*cs[rxnarray[2,rxnind]]*cs[rxnarray[3,rxnind]]
+            @inbounds jac[rxnarray[1,rxnind],rxnarray[1,rxnind]] -= 2.0*deriv
+            @inbounds jac[rxnarray[2,rxnind],rxnarray[1,rxnind]] -= deriv
+            @inbounds jac[rxnarray[3,rxnind],rxnarray[1,rxnind]] -= deriv
+            @inbounds _spreadreactantpartials!(jac,deriv,rxnarray,rxnind,rxnarray[1,rxnind])
+            @inbounds @fastmath deriv = k*cs[rxnarray[1,rxnind]]*cs[rxnarray[1,rxnind]]*cs[rxnarray[3,rxnind]]
+            @inbounds jac[rxnarray[1,rxnind],rxnarray[2,rxnind]] -= 2.0*deriv
+            @inbounds jac[rxnarray[2,rxnind],rxnarray[2,rxnind]] -= deriv
+            @inbounds jac[rxnarray[3,rxnind],rxnarray[2,rxnind]] -= deriv
+            @inbounds _spreadreactantpartials!(jac,deriv,rxnarray,rxnind,rxnarray[2,rxnind])
+            @inbounds @fastmath deriv = k*cs[rxnarray[1,rxnind]]*cs[rxnarray[1,rxnind]]*cs[rxnarray[2,rxnind]]
+            @inbounds jac[rxnarray[1,rxnind],rxnarray[3,rxnind]] -= 2.0*deriv
+            @inbounds jac[rxnarray[2,rxnind],rxnarray[3,rxnind]] -= deriv
+            @inbounds jac[rxnarray[3,rxnind],rxnarray[3,rxnind]] -= deriv
+            @inbounds _spreadreactantpartials!(jac,deriv,rxnarray,rxnind,rxnarray[3,rxnind])
+        elseif rxnarray[2,rxnind]==rxnarray[3,rxnind]
+            @inbounds @fastmath deriv = k*cs[rxnarray[2,rxnind]]*cs[rxnarray[2,rxnind]]*cs[rxnarray[4,rxnind]]
+            @inbounds jac[rxnarray[1,rxnind],rxnarray[1,rxnind]] -= deriv
+            @inbounds jac[rxnarray[2,rxnind],rxnarray[1,rxnind]] -= 2.0*dderiv
+            @inbounds jac[rxnarray[4,rxnind],rxnarray[1,rxnind]] -= deriv
+            @inbounds _spreadreactantpartials!(jac,deriv,rxnarray,rxnind,rxnarray[1,rxnind])
+            @inbounds @fastmath deriv = 2.0*k*cs[rxnarray[1,rxnind]]*cs[rxnarray[2,rxnind]]*cs[rxnarray[4,rxnind]]
+            @inbounds jac[rxnarray[1,rxnind],rxnarray[2,rxnind]] -= deriv
+            @inbounds jac[rxnarray[2,rxnind],rxnarray[2,rxnind]] -= 2.0*deriv
+            @inbounds jac[rxnarray[4,rxnind],rxnarray[2,rxnind]] -= deriv
+            @inbounds _spreadreactantpartials!(jac,deriv,rxnarray,rxnind,rxnarray[2,rxnind])
+            @inbounds @fastmath deriv = k*cs[rxnarray[1,rxnind]]*cs[rxnarray[2,rxnind]]*cs[rxnarray[2,rxnind]]
+            @inbounds jac[rxnarray[1,rxnind],rxnarray[4,rxnind]] -= deriv
+            @inbounds jac[rxnarray[2,rxnind],rxnarray[4,rxnind]] -= 2.0*deriv
+            @inbounds jac[rxnarray[4,rxnind],rxnarray[4,rxnind]] -= deriv
+            @inbounds _spreadreactantpartials!(jac,deriv,rxnarray,rxnind,rxnarray[4,rxnind])
+        elseif rxnarray[2,rxnind]==rxnarray[4,rxnind]
+            @inbounds @fastmath deriv = k*cs[rxnarray[2,rxnind]]*cs[rxnarray[2,rxnind]]*cs[rxnarray[3,rxnind]]
+            @inbounds jac[rxnarray[1,rxnind],rxnarray[1,rxnind]] -= deriv
+            @inbounds jac[rxnarray[2,rxnind],rxnarray[1,rxnind]] -= 2.0*dderiv
+            @inbounds jac[rxnarray[3,rxnind],rxnarray[1,rxnind]] -= deriv
+            @inbounds _spreadreactantpartials!(jac,deriv,rxnarray,rxnind,rxnarray[1,rxnind])
+            @inbounds @fastmath deriv = 2.0*k*cs[rxnarray[1,rxnind]]*cs[rxnarray[2,rxnind]]*cs[rxnarray[3,rxnind]]
+            @inbounds jac[rxnarray[1,rxnind],rxnarray[2,rxnind]] -= deriv
+            @inbounds jac[rxnarray[2,rxnind],rxnarray[2,rxnind]] -= 2.0*deriv
+            @inbounds jac[rxnarray[3,rxnind],rxnarray[2,rxnind]] -= deriv
+            @inbounds _spreadreactantpartials!(jac,deriv,rxnarray,rxnind,rxnarray[2,rxnind])
+            @inbounds @fastmath deriv = k*cs[rxnarray[1,rxnind]]*cs[rxnarray[2,rxnind]]*cs[rxnarray[2,rxnind]]
+            @inbounds jac[rxnarray[1,rxnind],rxnarray[3,rxnind]] -= deriv
+            @inbounds jac[rxnarray[2,rxnind],rxnarray[3,rxnind]] -= 2.0*deriv
+            @inbounds jac[rxnarray[3,rxnind],rxnarray[3,rxnind]] -= deriv
+            @inbounds _spreadreactantpartials!(jac,deriv,rxnarray,rxnind,rxnarray[3,rxnind])
+        elseif rxnarray[3,rxnind]==rxnarray[4,rxnind]
+            @inbounds @fastmath deriv = k*cs[rxnarray[2,rxnind]]*cs[rxnarray[3,rxnind]]*cs[rxnarray[3,rxnind]]
+            @inbounds jac[rxnarray[1,rxnind],rxnarray[1,rxnind]] -= deriv
+            @inbounds jac[rxnarray[2,rxnind],rxnarray[1,rxnind]] -= dderiv
+            @inbounds jac[rxnarray[3,rxnind],rxnarray[1,rxnind]] -= 2.0*deriv
+            @inbounds _spreadreactantpartials!(jac,deriv,rxnarray,rxnind,rxnarray[1,rxnind])
+            @inbounds @fastmath deriv = k*cs[rxnarray[1,rxnind]]*cs[rxnarray[3,rxnind]]*cs[rxnarray[3,rxnind]]
+            @inbounds jac[rxnarray[1,rxnind],rxnarray[2,rxnind]] -= deriv
+            @inbounds jac[rxnarray[2,rxnind],rxnarray[2,rxnind]] -= deriv
+            @inbounds jac[rxnarray[3,rxnind],rxnarray[2,rxnind]] -= 2.0*deriv
+            @inbounds _spreadreactantpartials!(jac,deriv,rxnarray,rxnind,rxnarray[2,rxnind])
+            @inbounds @fastmath deriv = 2.0*k*cs[rxnarray[1,rxnind]]*cs[rxnarray[2,rxnind]]*cs[rxnarray[3,rxnind]]
+            @inbounds jac[rxnarray[1,rxnind],rxnarray[3,rxnind]] -= deriv
+            @inbounds jac[rxnarray[2,rxnind],rxnarray[3,rxnind]] -= deriv
+            @inbounds jac[rxnarray[3,rxnind],rxnarray[3,rxnind]] -= 2.0*deriv
+            @inbounds _spreadreactantpartials!(jac,deriv,rxnarray,rxnind,rxnarray[3,rxnind])
+        else
+            @inbounds @fastmath deriv = k*cs[rxnarray[2,rxnind]]*cs[rxnarray[3,rxnind]]*cs[rxnarray[4,rxnind]]
+            @inbounds jac[rxnarray[1,rxnind],rxnarray[1,rxnind]] -= deriv
+            @inbounds jac[rxnarray[2,rxnind],rxnarray[1,rxnind]] -= deriv
+            @inbounds jac[rxnarray[3,rxnind],rxnarray[1,rxnind]] -= deriv
+            @inbounds jac[rxnarray[4,rxnind],rxnarray[1,rxnind]] -= deriv
+            @inbounds _spreadreactantpartials!(jac,deriv,rxnarray,rxnind,rxnarray[1,rxnind])
+            @inbounds @fastmath deriv = k*cs[rxnarray[1,rxnind]]*cs[rxnarray[3,rxnind]]*cs[rxnarray[4,rxnind]]
+            @inbounds jac[rxnarray[1,rxnind],rxnarray[2,rxnind]] -= deriv
+            @inbounds jac[rxnarray[2,rxnind],rxnarray[2,rxnind]] -= deriv
+            @inbounds jac[rxnarray[3,rxnind],rxnarray[2,rxnind]] -= deriv
+            @inbounds jac[rxnarray[4,rxnind],rxnarray[2,rxnind]] -= deriv
+            @inbounds _spreadreactantpartials!(jac,deriv,rxnarray,rxnind,rxnarray[2,rxnind])
+            @inbounds @fastmath deriv = k*cs[rxnarray[1,rxnind]]*cs[rxnarray[2,rxnind]]*cs[rxnarray[4,rxnind]]
+            @inbounds jac[rxnarray[1,rxnind],rxnarray[3,rxnind]] -= deriv
+            @inbounds jac[rxnarray[2,rxnind],rxnarray[3,rxnind]] -= deriv
+            @inbounds jac[rxnarray[3,rxnind],rxnarray[3,rxnind]] -= deriv
+            @inbounds jac[rxnarray[4,rxnind],rxnarray[3,rxnind]] -= deriv
+            @inbounds _spreadreactantpartials!(jac,deriv,rxnarray,rxnind,rxnarray[3,rxnind])
+            @inbounds @fastmath deriv = k*cs[rxnarray[1,rxnind]]*cs[rxnarray[2,rxnind]]*cs[rxnarray[3,rxnind]]
+            @inbounds jac[rxnarray[1,rxnind],rxnarray[4,rxnind]] -= deriv
+            @inbounds jac[rxnarray[2,rxnind],rxnarray[4,rxnind]] -= deriv
+            @inbounds jac[rxnarray[3,rxnind],rxnarray[4,rxnind]] -= deriv
+            @inbounds jac[rxnarray[4,rxnind],rxnarray[4,rxnind]] -= deriv
+            @inbounds _spreadreactantpartials!(jac,deriv,rxnarray,rxnind,rxnarray[4,rxnind])
+        end
     end
     k=krev
-    if rxnarray[5,rxnind] == 0
+    if rxnarray[6,rxnind] == 0
         deriv = k
-        @inbounds jac[rxnarray[4,rxnind],rxnarray[4,rxnind]] -= deriv
-        @inbounds _spreadproductpartials!(jac,deriv,rxnarray,rxnind,rxnarray[4,rxnind])
-    elseif rxnarray[6,rxnind] == 0
-        if rxnarray[4,rxnind] == rxnarray[5,rxnind]
-            @inbounds @fastmath deriv = 2.0*k*cs[rxnarray[4,rxnind]]
-            @inbounds jac[rxnarray[4,rxnind],rxnarray[4,rxnind]] -= 2.0*deriv
-            @inbounds _spreadproductpartials!(jac,deriv,rxnarray,rxnind,rxnarray[4,rxnind])
-        else
-            @inbounds @fastmath deriv = k*cs[rxnarray[5,rxnind]]
-            @inbounds jac[rxnarray[4,rxnind],rxnarray[4,rxnind]] -= deriv
-            @inbounds jac[rxnarray[5,rxnind],rxnarray[4,rxnind]] -= deriv
-            @inbounds _spreadproductpartials!(jac,deriv,rxnarray,rxnind,rxnarray[4,rxnind])
-            @inbounds @fastmath deriv = k*cs[rxnarray[4,rxnind]]
-            @inbounds jac[rxnarray[4,rxnind],rxnarray[5,rxnind]] -= deriv
-            @inbounds jac[rxnarray[5,rxnind],rxnarray[5,rxnind]] -= deriv
-            @inbounds _spreadproductpartials!(jac,deriv,rxnarray,rxnind,rxnarray[5,rxnind])
-        end
-    else
-        if rxnarray[4,rxnind]==rxnarray[5,rxnind] && rxnarray[4,rxnind]==rxnarray[6,rxnind]
-            @inbounds @fastmath deriv = 3.0*k*cs[rxnarray[4,rxnind]]*cs[rxnarray[4,rxnind]]
-            @inbounds jac[rxnarray[4,rxnind],rxnarray[4,rxnind]] -= 3.0*deriv
-            @inbounds _spreadproductpartials!(jac,deriv,rxnarray,rxnind,rxnarray[4,rxnind])
-        elseif rxnarray[4,rxnind]==rxnarray[5,rxnind]
-            @inbounds @fastmath deriv = 2.0*k*cs[rxnarray[4,rxnind]]*cs[rxnarray[6,rxnind]]
-            @inbounds jac[rxnarray[4,rxnind],rxnarray[4,rxnind]] -= 2.0*deriv
-            @inbounds jac[rxnarray[6,rxnind],rxnarray[4,rxnind]] -= deriv
-            @inbounds _spreadproductpartials!(jac,deriv,rxnarray,rxnind,rxnarray[4,rxnind])
-            @inbounds @fastmath deriv = k*cs[rxnarray[4,rxnind]]*cs[rxnarray[4,rxnind]]
-            @inbounds jac[rxnarray[4,rxnind],rxnarray[6,rxnind]] -= 2.0*deriv
-            @inbounds jac[rxnarray[6,rxnind],rxnarray[6,rxnind]] -= deriv
-            @inbounds _spreadproductpartials!(jac,deriv,rxnarray,rxnind,rxnarray[6,rxnind])
-        elseif rxnarray[5,rxnind]==rxnarray[6,rxnind]
-            @inbounds @fastmath deriv = k*cs[rxnarray[5,rxnind]]*cs[rxnarray[5,rxnind]]
-            @inbounds jac[rxnarray[4,rxnind],rxnarray[4,rxnind]] -= deriv
-            @inbounds jac[rxnarray[5,rxnind],rxnarray[4,rxnind]] -= 2.0*deriv
-            @inbounds _spreadproductpartials!(jac,deriv,rxnarray,rxnind,rxnarray[4,rxnind])
-            @inbounds @fastmath deriv = 2.0*k*cs[rxnarray[4,rxnind]]*cs[rxnarray[5,rxnind]]
-            @inbounds jac[rxnarray[4,rxnind],rxnarray[5,rxnind]] -= deriv
+        @inbounds jac[rxnarray[5,rxnind],rxnarray[5,rxnind]] -= deriv
+        @inbounds _spreadproductpartials!(jac,deriv,rxnarray,rxnind,rxnarray[5,rxnind])
+    elseif rxnarray[7,rxnind] == 0
+        if rxnarray[5,rxnind] == rxnarray[6,rxnind]
+            @inbounds @fastmath deriv = 2.0*k*cs[rxnarray[5,rxnind]]
             @inbounds jac[rxnarray[5,rxnind],rxnarray[5,rxnind]] -= 2.0*deriv
             @inbounds _spreadproductpartials!(jac,deriv,rxnarray,rxnind,rxnarray[5,rxnind])
-        elseif rxnarray[4,rxnind]==rxnarray[6,rxnind]
-            @inbounds @fastmath deriv = 2.0*k*cs[rxnarray[4,rxnind]]*cs[rxnarray[5,rxnind]]
-            @inbounds jac[rxnarray[4,rxnind],rxnarray[4,rxnind]] -= 2.0*deriv
-            @inbounds jac[rxnarray[5,rxnind],rxnarray[4,rxnind]] -= deriv
-            @inbounds _spreadproductpartials!(jac,deriv,rxnarray,rxnind,rxnarray[4,rxnind])
-            @inbounds @fastmath deriv = k*cs[rxnarray[4,rxnind]]*cs[rxnarray[4,rxnind]]
-            @inbounds jac[rxnarray[4,rxnind],rxnarray[5,rxnind]] -= 2.0*deriv
-            @inbounds jac[rxnarray[5,rxnind],rxnarray[5,rxnind]] -= deriv
-            @inbounds _spreadproductpartials!(jac,deriv,rxnarray,rxnind,rxnarray[5,rxnind])
         else
-            @inbounds @fastmath deriv = k*cs[rxnarray[5,rxnind]]*cs[rxnarray[6,rxnind]]
-            @inbounds jac[rxnarray[4,rxnind],rxnarray[4,rxnind]] -= deriv
-            @inbounds jac[rxnarray[5,rxnind],rxnarray[4,rxnind]] -= deriv
-            @inbounds jac[rxnarray[6,rxnind],rxnarray[4,rxnind]] -= deriv
-            @inbounds _spreadproductpartials!(jac,deriv,rxnarray,rxnind,rxnarray[4,rxnind])
-            @inbounds @fastmath deriv = k*cs[rxnarray[4,rxnind]]*cs[rxnarray[6,rxnind]]
-            @inbounds jac[rxnarray[4,rxnind],rxnarray[5,rxnind]] -= deriv
+            @inbounds @fastmath deriv = k*cs[rxnarray[6,rxnind]]
             @inbounds jac[rxnarray[5,rxnind],rxnarray[5,rxnind]] -= deriv
             @inbounds jac[rxnarray[6,rxnind],rxnarray[5,rxnind]] -= deriv
             @inbounds _spreadproductpartials!(jac,deriv,rxnarray,rxnind,rxnarray[5,rxnind])
-            @inbounds @fastmath deriv = k*cs[rxnarray[4,rxnind]]*cs[rxnarray[5,rxnind]]
-            @inbounds jac[rxnarray[4,rxnind],rxnarray[6,rxnind]] -= deriv
+            @inbounds @fastmath deriv = k*cs[rxnarray[5,rxnind]]
             @inbounds jac[rxnarray[5,rxnind],rxnarray[6,rxnind]] -= deriv
             @inbounds jac[rxnarray[6,rxnind],rxnarray[6,rxnind]] -= deriv
             @inbounds _spreadproductpartials!(jac,deriv,rxnarray,rxnind,rxnarray[6,rxnind])
+        end
+    elseif rxnarray[8,rxnind] == 0
+        if rxnarray[5,rxnind]==rxnarray[6,rxnind] && rxnarray[5,rxnind]==rxnarray[7,rxnind]
+            @inbounds @fastmath deriv = 3.0*k*cs[rxnarray[5,rxnind]]*cs[rxnarray[5,rxnind]]
+            @inbounds jac[rxnarray[5,rxnind],rxnarray[5,rxnind]] -= 3.0*deriv
+            @inbounds _spreadproductpartials!(jac,deriv,rxnarray,rxnind,rxnarray[5,rxnind])
+        elseif rxnarray[5,rxnind]==rxnarray[6,rxnind]
+            @inbounds @fastmath deriv = 2.0*k*cs[rxnarray[5,rxnind]]*cs[rxnarray[7,rxnind]]
+            @inbounds jac[rxnarray[5,rxnind],rxnarray[5,rxnind]] -= 2.0*deriv
+            @inbounds jac[rxnarray[7,rxnind],rxnarray[5,rxnind]] -= deriv
+            @inbounds _spreadproductpartials!(jac,deriv,rxnarray,rxnind,rxnarray[5,rxnind])
+            @inbounds @fastmath deriv = k*cs[rxnarray[5,rxnind]]*cs[rxnarray[5,rxnind]]
+            @inbounds jac[rxnarray[5,rxnind],rxnarray[7,rxnind]] -= 2.0*deriv
+            @inbounds jac[rxnarray[7,rxnind],rxnarray[7,rxnind]] -= deriv
+            @inbounds _spreadproductpartials!(jac,deriv,rxnarray,rxnind,rxnarray[7,rxnind])
+        elseif rxnarray[6,rxnind]==rxnarray[7,rxnind]
+            @inbounds @fastmath deriv = k*cs[rxnarray[6,rxnind]]*cs[rxnarray[6,rxnind]]
+            @inbounds jac[rxnarray[5,rxnind],rxnarray[5,rxnind]] -= deriv
+            @inbounds jac[rxnarray[6,rxnind],rxnarray[5,rxnind]] -= 2.0*deriv
+            @inbounds _spreadproductpartials!(jac,deriv,rxnarray,rxnind,rxnarray[5,rxnind])
+            @inbounds @fastmath deriv = 2.0*k*cs[rxnarray[5,rxnind]]*cs[rxnarray[6,rxnind]]
+            @inbounds jac[rxnarray[5,rxnind],rxnarray[6,rxnind]] -= deriv
+            @inbounds jac[rxnarray[6,rxnind],rxnarray[6,rxnind]] -= 2.0*deriv
+            @inbounds _spreadproductpartials!(jac,deriv,rxnarray,rxnind,rxnarray[6,rxnind])
+        elseif rxnarray[5,rxnind]==rxnarray[7,rxnind]
+            @inbounds @fastmath deriv = 2.0*k*cs[rxnarray[5,rxnind]]*cs[rxnarray[6,rxnind]]
+            @inbounds jac[rxnarray[5,rxnind],rxnarray[5,rxnind]] -= 2.0*deriv
+            @inbounds jac[rxnarray[6,rxnind],rxnarray[5,rxnind]] -= deriv
+            @inbounds _spreadproductpartials!(jac,deriv,rxnarray,rxnind,rxnarray[5,rxnind])
+            @inbounds @fastmath deriv = k*cs[rxnarray[5,rxnind]]*cs[rxnarray[5,rxnind]]
+            @inbounds jac[rxnarray[5,rxnind],rxnarray[6,rxnind]] -= 2.0*deriv
+            @inbounds jac[rxnarray[6,rxnind],rxnarray[6,rxnind]] -= deriv
+            @inbounds _spreadproductpartials!(jac,deriv,rxnarray,rxnind,rxnarray[6,rxnind])
+        else
+            @inbounds @fastmath deriv = k*cs[rxnarray[6,rxnind]]*cs[rxnarray[7,rxnind]]
+            @inbounds jac[rxnarray[5,rxnind],rxnarray[5,rxnind]] -= deriv
+            @inbounds jac[rxnarray[6,rxnind],rxnarray[5,rxnind]] -= deriv
+            @inbounds jac[rxnarray[7,rxnind],rxnarray[5,rxnind]] -= deriv
+            @inbounds _spreadproductpartials!(jac,deriv,rxnarray,rxnind,rxnarray[5,rxnind])
+            @inbounds @fastmath deriv = k*cs[rxnarray[5,rxnind]]*cs[rxnarray[7,rxnind]]
+            @inbounds jac[rxnarray[5,rxnind],rxnarray[6,rxnind]] -= deriv
+            @inbounds jac[rxnarray[6,rxnind],rxnarray[6,rxnind]] -= deriv
+            @inbounds jac[rxnarray[7,rxnind],rxnarray[6,rxnind]] -= deriv
+            @inbounds _spreadproductpartials!(jac,deriv,rxnarray,rxnind,rxnarray[6,rxnind])
+            @inbounds @fastmath deriv = k*cs[rxnarray[5,rxnind]]*cs[rxnarray[6,rxnind]]
+            @inbounds jac[rxnarray[5,rxnind],rxnarray[7,rxnind]] -= deriv
+            @inbounds jac[rxnarray[6,rxnind],rxnarray[7,rxnind]] -= deriv
+            @inbounds jac[rxnarray[7,rxnind],rxnarray[7,rxnind]] -= deriv
+            @inbounds _spreadproductpartials!(jac,deriv,rxnarray,rxnind,rxnarray[7,rxnind])
+        end
+    else
+        if rxnarray[5,rxnind]==rxnarray[6,rxnind] && rxnarray[5,rxnind]==rxnarray[7,rxnind] && rxnarray[5,rxnind]==rxnarray[8,rxnind]
+            @inbounds @fastmath deriv = 4.0*k*cs[rxnarray[5,rxnind]]*cs[rxnarray[5,rxnind]]*cs[rxnarray[5,rxnind]]
+            @inbounds jac[rxnarray[5,rxnind],rxnarray[5,rxnind]] -= 4.0*deriv
+            @inbounds _spreadproductpartials!(jac,deriv,rxnarray,rxnind,rxnarray[5,rxnind])
+        elseif rxnarray[5,rxnind]==rxnarray[6,rxnind] && rxnarray[5,rxnind]==rxnarray[7,rxnind]
+            @inbounds @fastmath deriv = 3.0*k*cs[rxnarray[5,rxnind]]*cs[rxnarray[5,rxnind]]*cs[rxnarray[8,rxnind]]
+            @inbounds jac[rxnarray[5,rxnind],rxnarray[5,rxnind]] -= 3.0*deriv
+            @inbounds jac[rxnarray[8,rxnind],rxnarray[5,rxnind]] -= deriv
+            @inbounds _spreadproductpartials!(jac,deriv,rxnarray,rxnind,rxnarray[5,rxnind])
+            @inbounds @fastmath deriv = k*cs[rxnarray[5,rxnind]]*cs[rxnarray[5,rxnind]]*cs[rxnarray[5,rxnind]]
+            @inbounds jac[rxnarray[5,rxnind],rxnarray[8,rxnind]] -= 3.0*deriv
+            @inbounds jac[rxnarray[8,rxnind],rxnarray[8,rxnind]] -= deriv
+            @inbounds _spreadproductpartials!(jac,deriv,rxnarray,rxnind,rxnarray[8,rxnind])
+        elseif rxnarray[5,rxnind]==rxnarray[7,rxnind] && rxnarray[5,rxnind]==rxnarray[8,rxnind]
+            @inbounds @fastmath deriv = 3.0*k*cs[rxnarray[5,rxnind]]*cs[rxnarray[5,rxnind]]*cs[rxnarray[6,rxnind]]
+            @inbounds jac[rxnarray[5,rxnind],rxnarray[5,rxnind]] -= 3.0*deriv
+            @inbounds jac[rxnarray[6,rxnind],rxnarray[5,rxnind]] -= deriv
+            @inbounds _spreadproductpartials!(jac,deriv,rxnarray,rxnind,rxnarray[5,rxnind])
+            @inbounds @fastmath deriv = k*cs[rxnarray[5,rxnind]]*cs[rxnarray[5,rxnind]]*cs[rxnarray[5,rxnind]]
+            @inbounds jac[rxnarray[5,rxnind],rxnarray[6,rxnind]] -= 3.0*deriv
+            @inbounds jac[rxnarray[6,rxnind],rxnarray[6,rxnind]] -= deriv
+            @inbounds _spreadproductpartials!(jac,deriv,rxnarray,rxnind,rxnarray[6,rxnind])
+        elseif rxnarray[5,rxnind]==rxnarray[6,rxnind] && rxnarray[5,rxnind]==rxnarray[8,rxnind]
+            @inbounds @fastmath deriv = 3.0*k*cs[rxnarray[5,rxnind]]*cs[rxnarray[5,rxnind]]*cs[rxnarray[7,rxnind]]
+            @inbounds jac[rxnarray[5,rxnind],rxnarray[5,rxnind]] -= 3.0*deriv
+            @inbounds jac[rxnarray[7,rxnind],rxnarray[5,rxnind]] -= deriv
+            @inbounds _spreadproductpartials!(jac,deriv,rxnarray,rxnind,rxnarray[5,rxnind])
+            @inbounds @fastmath deriv = k*cs[rxnarray[5,rxnind]]*cs[rxnarray[5,rxnind]]*cs[rxnarray[5,rxnind]]
+            @inbounds jac[rxnarray[5,rxnind],rxnarray[7,rxnind]] -= 3.0*deriv
+            @inbounds jac[rxnarray[7,rxnind],rxnarray[7,rxnind]] -= deriv
+            @inbounds _spreadproductpartials!(jac,deriv,rxnarray,rxnind,rxnarray[7,rxnind])
+        elseif rxnarray[6,rxnind]==rxnarray[7,rxnind] && rxnarray[6,rxnind]==rxnarray[8,rxnind]
+            @inbounds @fastmath deriv = k*cs[rxnarray[6,rxnind]]*cs[rxnarray[6,rxnind]]*cs[rxnarray[6,rxnind]]
+            @inbounds jac[rxnarray[5,rxnind],rxnarray[5,rxnind]] -= deriv
+            @inbounds jac[rxnarray[6,rxnind],rxnarray[5,rxnind]] -= 3.0*deriv
+            @inbounds _spreadproductpartials!(jac,deriv,rxnarray,rxnind,rxnarray[5,rxnind])
+            @inbounds @fastmath deriv = 3.0*k*cs[rxnarray[5,rxnind]]*cs[rxnarray[6,rxnind]]*cs[rxnarray[6,rxnind]]
+            @inbounds jac[rxnarray[5,rxnind],rxnarray[6,rxnind]] -= deriv
+            @inbounds jac[rxnarray[6,rxnind],rxnarray[6,rxnind]] -= 3.0*deriv
+            @inbounds _spreadproductpartials!(jac,deriv,rxnarray,rxnind,rxnarray[6,rxnind])
+        elseif rxnarray[5,rxnind]==rxnarray[6,rxnind]
+            @inbounds @fastmath deriv = 2.0*k*cs[rxnarray[5,rxnind]]*cs[rxnarray[7,rxnind]]*cs[rxnarray[8,rxnind]]
+            @inbounds jac[rxnarray[5,rxnind],rxnarray[5,rxnind]] -= 2.0*deriv
+            @inbounds jac[rxnarray[7,rxnind],rxnarray[5,rxnind]] -= deriv
+            @inbounds jac[rxnarray[8,rxnind],rxnarray[5,rxnind]] -= deriv
+            @inbounds _spreadproductpartials!(jac,deriv,rxnarray,rxnind,rxnarray[5,rxnind])
+            @inbounds @fastmath deriv = k*cs[rxnarray[5,rxnind]]*cs[rxnarray[5,rxnind]]*cs[rxnarray[8,rxnind]]
+            @inbounds jac[rxnarray[5,rxnind],rxnarray[7,rxnind]] -= 2.0*deriv
+            @inbounds jac[rxnarray[7,rxnind],rxnarray[7,rxnind]] -= deriv
+            @inbounds jac[rxnarray[8,rxnind],rxnarray[7,rxnind]] -= deriv
+            @inbounds _spreadproductpartials!(jac,deriv,rxnarray,rxnind,rxnarray[7,rxnind])
+            @inbounds @fastmath deriv = k*cs[rxnarray[5,rxnind]]*cs[rxnarray[5,rxnind]]*cs[rxnarray[7,rxnind]]
+            @inbounds jac[rxnarray[5,rxnind],rxnarray[8,rxnind]] -= 2.0*deriv
+            @inbounds jac[rxnarray[7,rxnind],rxnarray[8,rxnind]] -= deriv
+            @inbounds jac[rxnarray[8,rxnind],rxnarray[8,rxnind]] -= deriv
+            @inbounds _spreadproductpartials!(jac,deriv,rxnarray,rxnind,rxnarray[8,rxnind])
+        elseif rxnarray[5,rxnind]==rxnarray[7,rxnind]
+            @inbounds @fastmath deriv = 2.0*k*cs[rxnarray[5,rxnind]]*cs[rxnarray[6,rxnind]]*cs[rxnarray[8,rxnind]]
+            @inbounds jac[rxnarray[5,rxnind],rxnarray[5,rxnind]] -= 2.0*deriv
+            @inbounds jac[rxnarray[6,rxnind],rxnarray[5,rxnind]] -= deriv
+            @inbounds jac[rxnarray[8,rxnind],rxnarray[5,rxnind]] -= deriv
+            @inbounds _spreadproductpartials!(jac,deriv,rxnarray,rxnind,rxnarray[5,rxnind])
+            @inbounds @fastmath deriv = k*cs[rxnarray[5,rxnind]]*cs[rxnarray[5,rxnind]]*cs[rxnarray[8,rxnind]]
+            @inbounds jac[rxnarray[5,rxnind],rxnarray[6,rxnind]] -= 2.0*deriv
+            @inbounds jac[rxnarray[6,rxnind],rxnarray[6,rxnind]] -= deriv
+            @inbounds jac[rxnarray[8,rxnind],rxnarray[6,rxnind]] -= deriv
+            @inbounds _spreadproductpartials!(jac,deriv,rxnarray,rxnind,rxnarray[6,rxnind])
+            @inbounds @fastmath deriv = k*cs[rxnarray[5,rxnind]]*cs[rxnarray[5,rxnind]]*cs[rxnarray[6,rxnind]]
+            @inbounds jac[rxnarray[5,rxnind],rxnarray[8,rxnind]] -= 2.0*deriv
+            @inbounds jac[rxnarray[6,rxnind],rxnarray[8,rxnind]] -= deriv
+            @inbounds jac[rxnarray[8,rxnind],rxnarray[8,rxnind]] -= deriv
+            @inbounds _spreadproductpartials!(jac,deriv,rxnarray,rxnind,rxnarray[8,rxnind])
+        elseif rxnarray[5,rxnind]==rxnarray[8,rxnind]
+            @inbounds @fastmath deriv = 2.0*k*cs[rxnarray[5,rxnind]]*cs[rxnarray[6,rxnind]]*cs[rxnarray[7,rxnind]]
+            @inbounds jac[rxnarray[5,rxnind],rxnarray[5,rxnind]] -= 2.0*deriv
+            @inbounds jac[rxnarray[6,rxnind],rxnarray[5,rxnind]] -= deriv
+            @inbounds jac[rxnarray[7,rxnind],rxnarray[5,rxnind]] -= deriv
+            @inbounds _spreadproductpartials!(jac,deriv,rxnarray,rxnind,rxnarray[5,rxnind])
+            @inbounds @fastmath deriv = k*cs[rxnarray[5,rxnind]]*cs[rxnarray[5,rxnind]]*cs[rxnarray[7,rxnind]]
+            @inbounds jac[rxnarray[5,rxnind],rxnarray[6,rxnind]] -= 2.0*deriv
+            @inbounds jac[rxnarray[6,rxnind],rxnarray[6,rxnind]] -= deriv
+            @inbounds jac[rxnarray[7,rxnind],rxnarray[6,rxnind]] -= deriv
+            @inbounds _spreadproductpartials!(jac,deriv,rxnarray,rxnind,rxnarray[6,rxnind])
+            @inbounds @fastmath deriv = k*cs[rxnarray[5,rxnind]]*cs[rxnarray[5,rxnind]]*cs[rxnarray[6,rxnind]]
+            @inbounds jac[rxnarray[5,rxnind],rxnarray[7,rxnind]] -= 2.0*deriv
+            @inbounds jac[rxnarray[6,rxnind],rxnarray[7,rxnind]] -= deriv
+            @inbounds jac[rxnarray[7,rxnind],rxnarray[7,rxnind]] -= deriv
+            @inbounds _spreadproductpartials!(jac,deriv,rxnarray,rxnind,rxnarray[7,rxnind])
+        elseif rxnarray[6,rxnind]==rxnarray[7,rxnind]
+            @inbounds @fastmath deriv = k*cs[rxnarray[6,rxnind]]*cs[rxnarray[6,rxnind]]*cs[rxnarray[8,rxnind]]
+            @inbounds jac[rxnarray[5,rxnind],rxnarray[5,rxnind]] -= deriv
+            @inbounds jac[rxnarray[6,rxnind],rxnarray[5,rxnind]] -= 2.0*deriv
+            @inbounds jac[rxnarray[8,rxnind],rxnarray[5,rxnind]] -= deriv
+            @inbounds _spreadproductpartials!(jac,deriv,rxnarray,rxnind,rxnarray[5,rxnind])
+            @inbounds @fastmath deriv = 2.0*k*cs[rxnarray[5,rxnind]]*cs[rxnarray[6,rxnind]]*cs[rxnarray[8,rxnind]]
+            @inbounds jac[rxnarray[5,rxnind],rxnarray[6,rxnind]] -= deriv
+            @inbounds jac[rxnarray[6,rxnind],rxnarray[6,rxnind]] -= 2.0*deriv
+            @inbounds jac[rxnarray[8,rxnind],rxnarray[6,rxnind]] -= deriv
+            @inbounds _spreadproductpartials!(jac,deriv,rxnarray,rxnind,rxnarray[6,rxnind])
+            @inbounds @fastmath deriv = k*cs[rxnarray[5,rxnind]]*cs[rxnarray[6,rxnind]]*cs[rxnarray[6,rxnind]]
+            @inbounds jac[rxnarray[5,rxnind],rxnarray[8,rxnind]] -= deriv
+            @inbounds jac[rxnarray[6,rxnind],rxnarray[8,rxnind]] -= 2.0*deriv
+            @inbounds jac[rxnarray[8,rxnind],rxnarray[8,rxnind]] -= deriv
+            @inbounds _spreadproductpartials!(jac,deriv,rxnarray,rxnind,rxnarray[8,rxnind])
+        elseif rxnarray[6,rxnind]==rxnarray[8,rxnind]
+            @inbounds @fastmath deriv = k*cs[rxnarray[6,rxnind]]*cs[rxnarray[6,rxnind]]*cs[rxnarray[7,rxnind]]
+            @inbounds jac[rxnarray[5,rxnind],rxnarray[5,rxnind]] -= deriv
+            @inbounds jac[rxnarray[6,rxnind],rxnarray[5,rxnind]] -= 2.0*deriv
+            @inbounds jac[rxnarray[7,rxnind],rxnarray[5,rxnind]] -= deriv
+            @inbounds _spreadproductpartials!(jac,deriv,rxnarray,rxnind,rxnarray[5,rxnind])
+            @inbounds @fastmath deriv = 2.0*k*cs[rxnarray[5,rxnind]]*cs[rxnarray[6,rxnind]]*cs[rxnarray[7,rxnind]]
+            @inbounds jac[rxnarray[5,rxnind],rxnarray[6,rxnind]] -= deriv
+            @inbounds jac[rxnarray[6,rxnind],rxnarray[6,rxnind]] -= 2.0*deriv
+            @inbounds jac[rxnarray[7,rxnind],rxnarray[6,rxnind]] -= deriv
+            @inbounds _spreadproductpartials!(jac,deriv,rxnarray,rxnind,rxnarray[6,rxnind])
+            @inbounds @fastmath deriv = k*cs[rxnarray[5,rxnind]]*cs[rxnarray[6,rxnind]]*cs[rxnarray[6,rxnind]]
+            @inbounds jac[rxnarray[5,rxnind],rxnarray[7,rxnind]] -= deriv
+            @inbounds jac[rxnarray[6,rxnind],rxnarray[7,rxnind]] -= 2.0*deriv
+            @inbounds jac[rxnarray[7,rxnind],rxnarray[7,rxnind]] -= deriv
+            @inbounds _spreadproductpartials!(jac,deriv,rxnarray,rxnind,rxnarray[7,rxnind])
+        elseif rxnarray[7,rxnind]==rxnarray[8,rxnind]
+            @inbounds @fastmath deriv = k*cs[rxnarray[6,rxnind]]*cs[rxnarray[7,rxnind]]*cs[rxnarray[7,rxnind]]
+            @inbounds jac[rxnarray[5,rxnind],rxnarray[5,rxnind]] -= deriv
+            @inbounds jac[rxnarray[6,rxnind],rxnarray[5,rxnind]] -= deriv
+            @inbounds jac[rxnarray[7,rxnind],rxnarray[5,rxnind]] -= 2.0*deriv
+            @inbounds _spreadproductpartials!(jac,deriv,rxnarray,rxnind,rxnarray[5,rxnind])
+            @inbounds @fastmath deriv = k*cs[rxnarray[5,rxnind]]*cs[rxnarray[7,rxnind]]*cs[rxnarray[7,rxnind]]
+            @inbounds jac[rxnarray[5,rxnind],rxnarray[6,rxnind]] -= deriv
+            @inbounds jac[rxnarray[6,rxnind],rxnarray[6,rxnind]] -= deriv
+            @inbounds jac[rxnarray[7,rxnind],rxnarray[6,rxnind]] -= 2.0*deriv
+            @inbounds _spreadproductpartials!(jac,deriv,rxnarray,rxnind,rxnarray[6,rxnind])
+            @inbounds @fastmath deriv = 2.0*k*cs[rxnarray[5,rxnind]]*cs[rxnarray[6,rxnind]]*cs[rxnarray[7,rxnind]]
+            @inbounds jac[rxnarray[5,rxnind],rxnarray[7,rxnind]] -= deriv
+            @inbounds jac[rxnarray[6,rxnind],rxnarray[7,rxnind]] -= deriv
+            @inbounds jac[rxnarray[7,rxnind],rxnarray[7,rxnind]] -= 2.0*deriv
+            @inbounds _spreadproductpartials!(jac,deriv,rxnarray,rxnind,rxnarray[7,rxnind])
+        else
+            @inbounds @fastmath deriv = k*cs[rxnarray[6,rxnind]]*cs[rxnarray[7,rxnind]]*cs[rxnarray[8,rxnind]]
+            @inbounds jac[rxnarray[5,rxnind],rxnarray[5,rxnind]] -= deriv
+            @inbounds jac[rxnarray[6,rxnind],rxnarray[5,rxnind]] -= deriv
+            @inbounds jac[rxnarray[7,rxnind],rxnarray[5,rxnind]] -= deriv
+            @inbounds jac[rxnarray[8,rxnind],rxnarray[5,rxnind]] -= deriv
+            @inbounds _spreadproductpartials!(jac,deriv,rxnarray,rxnind,rxnarray[5,rxnind])
+            @inbounds @fastmath deriv = k*cs[rxnarray[5,rxnind]]*cs[rxnarray[7,rxnind]]*cs[rxnarray[8,rxnind]]
+            @inbounds jac[rxnarray[5,rxnind],rxnarray[6,rxnind]] -= deriv
+            @inbounds jac[rxnarray[6,rxnind],rxnarray[6,rxnind]] -= deriv
+            @inbounds jac[rxnarray[7,rxnind],rxnarray[6,rxnind]] -= deriv
+            @inbounds jac[rxnarray[8,rxnind],rxnarray[6,rxnind]] -= deriv
+            @inbounds _spreadproductpartials!(jac,deriv,rxnarray,rxnind,rxnarray[6,rxnind])
+            @inbounds @fastmath deriv = k*cs[rxnarray[5,rxnind]]*cs[rxnarray[6,rxnind]]*cs[rxnarray[8,rxnind]]
+            @inbounds jac[rxnarray[5,rxnind],rxnarray[7,rxnind]] -= deriv
+            @inbounds jac[rxnarray[6,rxnind],rxnarray[7,rxnind]] -= deriv
+            @inbounds jac[rxnarray[7,rxnind],rxnarray[7,rxnind]] -= deriv
+            @inbounds jac[rxnarray[8,rxnind],rxnarray[7,rxnind]] -= deriv
+            @inbounds _spreadproductpartials!(jac,deriv,rxnarray,rxnind,rxnarray[7,rxnind])
+            @inbounds @fastmath deriv = k*cs[rxnarray[5,rxnind]]*cs[rxnarray[6,rxnind]]*cs[rxnarray[7,rxnind]]
+            @inbounds jac[rxnarray[5,rxnind],rxnarray[8,rxnind]] -= deriv
+            @inbounds jac[rxnarray[6,rxnind],rxnarray[8,rxnind]] -= deriv
+            @inbounds jac[rxnarray[7,rxnind],rxnarray[8,rxnind]] -= deriv
+            @inbounds jac[rxnarray[8,rxnind],rxnarray[8,rxnind]] -= deriv
+            @inbounds _spreadproductpartials!(jac,deriv,rxnarray,rxnind,rxnarray[8,rxnind])
         end
     end
 end
@@ -496,27 +842,41 @@ end
         @inbounds jac[rxnarray[1,rxnind],Vind] -= deriv
         @inbounds jac[rxnarray[2,rxnind],Vind] -= deriv
         _spreadreactantpartials!(jac,deriv,rxnarray,rxnind,Vind)
-    else
+    elseif rxnarray[4,rxnind]== 0
         @inbounds @fastmath deriv = -2.0*k*cs[rxnarray[1,rxnind]]*cs[rxnarray[2,rxnind]]*cs[rxnarray[3,rxnind]]
         @inbounds jac[rxnarray[1,rxnind],Vind] -= deriv
         @inbounds jac[rxnarray[2,rxnind],Vind] -= deriv
         @inbounds jac[rxnarray[3,rxnind],Vind] -= deriv
         _spreadreactantpartials!(jac,deriv,rxnarray,rxnind,Vind)
+    else
+        @inbounds @fastmath deriv = -3.0*k*cs[rxnarray[1,rxnind]]*cs[rxnarray[2,rxnind]]*cs[rxnarray[3,rxnind]]*cs[rxnarray[4,rxnind]]
+        @inbounds jac[rxnarray[1,rxnind],Vind] -= deriv
+        @inbounds jac[rxnarray[2,rxnind],Vind] -= deriv
+        @inbounds jac[rxnarray[3,rxnind],Vind] -= deriv
+        @inbounds jac[rxnarray[4,rxnind],Vind] -= deriv
+        _spreadreactantpartials!(jac,deriv,rxnarray,rxnind,Vind) 
     end
     k=krev
-    if rxnarray[5,rxnind]==0
+    if rxnarray[6,rxnind]==0
         nothing
-    elseif rxnarray[6,rxnind] == 0
-        @inbounds @fastmath deriv = -k*cs[rxnarray[4,rxnind]]*cs[rxnarray[5,rxnind]]
-        @inbounds jac[rxnarray[4,rxnind],Vind] -= deriv
-        @inbounds jac[rxnarray[5,rxnind],Vind] -= deriv
-        _spreadproductpartials!(jac,deriv,rxnarray,rxnind,Vind)
-    else
-        @inbounds @fastmath deriv = -2.0*k*cs[rxnarray[4,rxnind]]*cs[rxnarray[5,rxnind]]*cs[rxnarray[6,rxnind]]
-        @inbounds jac[rxnarray[4,rxnind],Vind] -= deriv
+    elseif rxnarray[7,rxnind] == 0
+        @inbounds @fastmath deriv = -k*cs[rxnarray[5,rxnind]]*cs[rxnarray[6,rxnind]]
         @inbounds jac[rxnarray[5,rxnind],Vind] -= deriv
         @inbounds jac[rxnarray[6,rxnind],Vind] -= deriv
         _spreadproductpartials!(jac,deriv,rxnarray,rxnind,Vind)
+    elseif rxnarray[8,rxnind] == 0
+        @inbounds @fastmath deriv = -2.0*k*cs[rxnarray[5,rxnind]]*cs[rxnarray[6,rxnind]]*cs[rxnarray[7,rxnind]]
+        @inbounds jac[rxnarray[5,rxnind],Vind] -= deriv
+        @inbounds jac[rxnarray[6,rxnind],Vind] -= deriv
+        @inbounds jac[rxnarray[7,rxnind],Vind] -= deriv
+        _spreadproductpartials!(jac,deriv,rxnarray,rxnind,Vind)
+    else
+        @inbounds @fastmath deriv = -3.0*k*cs[rxnarray[5,rxnind]]*cs[rxnarray[6,rxnind]]*cs[rxnarray[7,rxnind]]*cs[rxnarray[8,rxnind]]
+        @inbounds jac[rxnarray[5,rxnind],Vind] -= deriv
+        @inbounds jac[rxnarray[6,rxnind],Vind] -= deriv
+        @inbounds jac[rxnarray[7,rxnind],Vind] -= deriv
+        @inbounds jac[rxnarray[8,rxnind],Vind] -= deriv
+        _spreadproductpartials!(jac,deriv,rxnarray,rxnind,Vind) 
     end
 end
 
@@ -534,28 +894,42 @@ This function calculates the ns partials in jacobiany involving k derivatives. d
         @inbounds jac[rxnarray[1,rxnind],xind] -= deriv
         @inbounds jac[rxnarray[2,rxnind],xind] -= deriv
         _spreadreactantpartials!(jac,deriv,rxnarray,rxnind,xind)
-    else
+    elseif rxnarray[4,rxnind] == 0
         @inbounds @fastmath deriv = dkdx*cs[rxnarray[1,rxnind]]*cs[rxnarray[2,rxnind]]*cs[rxnarray[3,rxnind]]*V
         @inbounds jac[rxnarray[1,rxnind],xind] -= deriv
         @inbounds jac[rxnarray[2,rxnind],xind] -= deriv
         @inbounds jac[rxnarray[3,rxnind],xind] -= deriv
         _spreadreactantpartials!(jac,deriv,rxnarray,rxnind,xind)
+    else
+        @inbounds @fastmath deriv = dkdx*cs[rxnarray[1,rxnind]]*cs[rxnarray[2,rxnind]]*cs[rxnarray[3,rxnind]]*cs[rxnarray[4,rxnind]]*V
+        @inbounds jac[rxnarray[1,rxnind],xind] -= deriv
+        @inbounds jac[rxnarray[2,rxnind],xind] -= deriv
+        @inbounds jac[rxnarray[3,rxnind],xind] -= deriv
+        @inbounds jac[rxnarray[4,rxnind],xind] -= deriv
+        _spreadreactantpartials!(jac,deriv,rxnarray,rxnind,xind)
     end
     dkdx = dkrevdx
-    if rxnarray[5,rxnind] == 0
-        @inbounds @fastmath deriv = dkdx*cs[rxnarray[4,rxnind]]*V
-        @inbounds jac[rxnarray[4,rxnind],xind] -= deriv
-        _spreadproductpartials!(jac,deriv,rxnarray,rxnind,xind)
-    elseif rxnarray[6,rxnind] == 0
-        @inbounds @fastmath deriv = dkdx*cs[rxnarray[4,rxnind]]*cs[rxnarray[5,rxnind]]*V
-        @inbounds jac[rxnarray[4,rxnind],xind] -= deriv
+    if rxnarray[6,rxnind] == 0
+        @inbounds @fastmath deriv = dkdx*cs[rxnarray[5,rxnind]]*V
         @inbounds jac[rxnarray[5,rxnind],xind] -= deriv
         _spreadproductpartials!(jac,deriv,rxnarray,rxnind,xind)
-    else
-        @inbounds @fastmath deriv = dkdx*cs[rxnarray[4,rxnind]]*cs[rxnarray[5,rxnind]]*cs[rxnarray[6,rxnind]]*V
-        @inbounds jac[rxnarray[4,rxnind],xind] -= deriv
+    elseif rxnarray[7,rxnind] == 0
+        @inbounds @fastmath deriv = dkdx*cs[rxnarray[5,rxnind]]*cs[rxnarray[6,rxnind]]*V
         @inbounds jac[rxnarray[5,rxnind],xind] -= deriv
         @inbounds jac[rxnarray[6,rxnind],xind] -= deriv
+        _spreadproductpartials!(jac,deriv,rxnarray,rxnind,xind)
+    elseif rxnarray[8,rxnind] == 0
+        @inbounds @fastmath deriv = dkdx*cs[rxnarray[5,rxnind]]*cs[rxnarray[6,rxnind]]*cs[rxnarray[7,rxnind]]*V
+        @inbounds jac[rxnarray[5,rxnind],xind] -= deriv
+        @inbounds jac[rxnarray[6,rxnind],xind] -= deriv
+        @inbounds jac[rxnarray[7,rxnind],xind] -= deriv
+        _spreadproductpartials!(jac,deriv,rxnarray,rxnind,xind)
+    else
+        @inbounds @fastmath deriv = dkdx*cs[rxnarray[5,rxnind]]*cs[rxnarray[6,rxnind]]*cs[rxnarray[7,rxnind]]*cs[rxnarray[8,rxnind]]*V
+        @inbounds jac[rxnarray[5,rxnind],xind] -= deriv
+        @inbounds jac[rxnarray[6,rxnind],xind] -= deriv
+        @inbounds jac[rxnarray[7,rxnind],xind] -= deriv
+        @inbounds jac[rxnarray[8,rxnind],xind] -= deriv
         _spreadproductpartials!(jac,deriv,rxnarray,rxnind,xind)
     end
 end
