@@ -1924,32 +1924,40 @@ export jacobiany!
                 @fastmath @inbounds fderiv = kfs[rxnind]*cs[rxnarray[1,rxnind]]
             elseif @inbounds rxnarray[3,rxnind] == 0
                 @fastmath @inbounds fderiv = kfs[rxnind]*cs[rxnarray[1,rxnind]]*cs[rxnarray[2,rxnind]]
-            else
+            elseif @inbounds rxnarray[4,rxnind] == 0
                 @fastmath @inbounds fderiv = kfs[rxnind]*cs[rxnarray[1,rxnind]]*cs[rxnarray[2,rxnind]]*cs[rxnarray[3,rxnind]]
+            else
+                @fastmath @inbounds fderiv = kfs[rxnind]*cs[rxnarray[1,rxnind]]*cs[rxnarray[2,rxnind]]*cs[rxnarray[3,rxnind]]*cs[rxnarray[4,rxnind]]
             end
 
-            if @inbounds rxnarray[5,rxnind] == 0
-                @fastmath @inbounds rderiv = krevs[rxnind]*cs[rxnarray[4,rxnind]]
-            elseif @inbounds rxnarray[6,rxnind] == 0
-                @fastmath @inbounds rderiv = krevs[rxnind]*cs[rxnarray[4,rxnind]]*cs[rxnarray[5,rxnind]]
+            if @inbounds rxnarray[6,rxnind] == 0
+                @fastmath @inbounds rderiv = krevs[rxnind]*cs[rxnarray[5,rxnind]]
+            elseif @inbounds rxnarray[7,rxnind] == 0
+                @fastmath @inbounds rderiv = krevs[rxnind]*cs[rxnarray[5,rxnind]]*cs[rxnarray[6,rxnind]]
+            elseif @inbounds rxnarray[8,rxnind] == 0
+                @fastmath @inbounds rderiv = krevs[rxnind]*cs[rxnarray[5,rxnind]]*cs[rxnarray[6,rxnind]]*cs[rxnarray[7,rxnind]]
             else
-                @fastmath @inbounds rderiv = krevs[rxnind]*cs[rxnarray[4,rxnind]]*cs[rxnarray[5,rxnind]]*cs[rxnarray[6,rxnind]]
+                @fastmath @inbounds rderiv = krevs[rxnind]*cs[rxnarray[5,rxnind]]*cs[rxnarray[6,rxnind]]*cs[rxnarray[7,rxnind]]*cs[rxnarray[8,rxnind]]
             end
         else
             if @inbounds rxnarray[2,rxnind] == 0
                 @inbounds fderiv = cs[rxnarray[1,rxnind]]
             elseif @inbounds  rxnarray[3,rxnind] == 0
                 @fastmath @inbounds fderiv = cs[rxnarray[1,rxnind]]*cs[rxnarray[2,rxnind]]
-            else
+            elseif @inbounds  rxnarray[4,rxnind] == 0
                 @fastmath @inbounds fderiv = cs[rxnarray[1,rxnind]]*cs[rxnarray[2,rxnind]]*cs[rxnarray[3,rxnind]]
+            else
+                @fastmath @inbounds fderiv = cs[rxnarray[1,rxnind]]*cs[rxnarray[2,rxnind]]*cs[rxnarray[3,rxnind]]*cs[rxnarray[4,rxnind]]
             end
 
-            if @inbounds rxnarray[5,rxnind] == 0
-                @fastmath @inbounds rderiv = krevs[rxnind]/kfs[rxnind]*cs[rxnarray[4,rxnind]]
-            elseif @inbounds rxnarray[6,rxnind] == 0
-                @fastmath @inbounds rderiv = krevs[rxnind]/kfs[rxnind]*cs[rxnarray[4,rxnind]]*cs[rxnarray[5,rxnind]]
+            if @inbounds rxnarray[6,rxnind] == 0
+                @fastmath @inbounds rderiv = krevs[rxnind]/kfs[rxnind]*cs[rxnarray[5,rxnind]]
+            elseif @inbounds rxnarray[7,rxnind] == 0
+                @fastmath @inbounds rderiv = krevs[rxnind]/kfs[rxnind]*cs[rxnarray[5,rxnind]]*cs[rxnarray[6,rxnind]]
+            elseif @inbounds rxnarray[8,rxnind] == 0
+                @fastmath @inbounds rderiv = krevs[rxnind]/kfs[rxnind]*cs[rxnarray[5,rxnind]]*cs[rxnarray[6,rxnind]]*cs[rxnarray[7,rxnind]]
             else
-                @fastmath @inbounds rderiv = krevs[rxnind]/kfs[rxnind]*cs[rxnarray[4,rxnind]]*cs[rxnarray[5,rxnind]]*cs[rxnarray[6,rxnind]]
+                @fastmath @inbounds rderiv = krevs[rxnind]/kfs[rxnind]*cs[rxnarray[5,rxnind]]*cs[rxnarray[6,rxnind]]*cs[rxnarray[7,rxnind]]*cs[rxnarray[8,rxnind]]
             end
         end
 
@@ -1973,23 +1981,43 @@ export jacobiany!
                 @inbounds jacp[rxnarray[2,rxnind],rxnarray[3,rxnind]] -= gderiv
                 @inbounds jacp[rxnarray[3,rxnind],rxnarray[3,rxnind]] -= gderiv
                 @inbounds _spreadreactantpartials!(jacp,gderiv,rxnarray,rxnind,rxnarray[3,rxnind])
+                if @inbounds rxnarray[4,rxnind] !== 0
+                    @inbounds jacp[rxnarray[4,rxnind],rxnarray[1,rxnind]] -= gderiv
+                    @inbounds jacp[rxnarray[4,rxnind],rxnarray[2,rxnind]] -= gderiv
+                    @inbounds jacp[rxnarray[4,rxnind],rxnarray[3,rxnind]] -= gderiv
+                    @inbounds jacp[rxnarray[1,rxnind],rxnarray[4,rxnind]] -= gderiv
+                    @inbounds jacp[rxnarray[2,rxnind],rxnarray[4,rxnind]] -= gderiv
+                    @inbounds jacp[rxnarray[3,rxnind],rxnarray[4,rxnind]] -= gderiv
+                    @inbounds jacp[rxnarray[4,rxnind],rxnarray[4,rxnind]] -= gderiv
+                    @inbounds _spreadreactantpartials!(jacp,gderiv,rxnarray,rxnind,rxnarray[4,rxnind])
+                end
             end
         end
 
-        @inbounds jacp[rxnarray[4,rxnind],rxnarray[4,rxnind]] -= gderiv
-        @inbounds _spreadproductpartials!(jacp,gderiv,rxnarray,rxnind,rxnarray[4,rxnind])
-        if @inbounds rxnarray[5,rxnind] !== 0
-            @inbounds jacp[rxnarray[5,rxnind],rxnarray[4,rxnind]] -= gderiv
-            @inbounds jacp[rxnarray[4,rxnind],rxnarray[5,rxnind]] -= gderiv
-            @inbounds jacp[rxnarray[5,rxnind],rxnarray[5,rxnind]] -= gderiv
-            @inbounds _spreadproductpartials!(jacp,gderiv,rxnarray,rxnind,rxnarray[5,rxnind])
-            if @inbounds rxnarray[6,rxnind] !== 0
-                @inbounds jacp[rxnarray[6,rxnind],rxnarray[4,rxnind]] -= gderiv
-                @inbounds jacp[rxnarray[6,rxnind],rxnarray[5,rxnind]] -= gderiv
-                @inbounds jacp[rxnarray[4,rxnind],rxnarray[6,rxnind]] -= gderiv
-                @inbounds jacp[rxnarray[5,rxnind],rxnarray[6,rxnind]] -= gderiv
-                @inbounds jacp[rxnarray[6,rxnind],rxnarray[6,rxnind]] -= gderiv
-                @inbounds _spreadproductpartials!(jacp,gderiv,rxnarray,rxnind,rxnarray[6,rxnind])
+        @inbounds jacp[rxnarray[5,rxnind],rxnarray[5,rxnind]] -= gderiv
+        @inbounds _spreadproductpartials!(jacp,gderiv,rxnarray,rxnind,rxnarray[5,rxnind])
+        if @inbounds rxnarray[6,rxnind] !== 0
+            @inbounds jacp[rxnarray[6,rxnind],rxnarray[5,rxnind]] -= gderiv
+            @inbounds jacp[rxnarray[5,rxnind],rxnarray[6,rxnind]] -= gderiv
+            @inbounds jacp[rxnarray[6,rxnind],rxnarray[6,rxnind]] -= gderiv
+            @inbounds _spreadproductpartials!(jacp,gderiv,rxnarray,rxnind,rxnarray[6,rxnind])
+            if @inbounds rxnarray[7,rxnind] !== 0
+                @inbounds jacp[rxnarray[7,rxnind],rxnarray[5,rxnind]] -= gderiv
+                @inbounds jacp[rxnarray[7,rxnind],rxnarray[6,rxnind]] -= gderiv
+                @inbounds jacp[rxnarray[5,rxnind],rxnarray[7,rxnind]] -= gderiv
+                @inbounds jacp[rxnarray[6,rxnind],rxnarray[7,rxnind]] -= gderiv
+                @inbounds jacp[rxnarray[7,rxnind],rxnarray[7,rxnind]] -= gderiv
+                @inbounds _spreadproductpartials!(jacp,gderiv,rxnarray,rxnind,rxnarray[7,rxnind])
+                if @inbounds rxnarray[8,rxnind] !== 0
+                    @inbounds jacp[rxnarray[8,rxnind],rxnarray[5,rxnind]] -= gderiv
+                    @inbounds jacp[rxnarray[8,rxnind],rxnarray[6,rxnind]] -= gderiv
+                    @inbounds jacp[rxnarray[8,rxnind],rxnarray[7,rxnind]] -= gderiv
+                    @inbounds jacp[rxnarray[5,rxnind],rxnarray[8,rxnind]] -= gderiv
+                    @inbounds jacp[rxnarray[6,rxnind],rxnarray[8,rxnind]] -= gderiv
+                    @inbounds jacp[rxnarray[7,rxnind],rxnarray[8,rxnind]] -= gderiv
+                    @inbounds jacp[rxnarray[8,rxnind],rxnarray[8,rxnind]] -= gderiv
+                    @inbounds _spreadproductpartials!(jacp,gderiv,rxnarray,rxnind,rxnarray[8,rxnind])
+                end
             end
         end
         
@@ -2004,16 +2032,20 @@ end
             @fastmath @inbounds fderiv = kfs[rxnind]*cs[rxnarray[1,rxnind]]
         elseif @inbounds rxnarray[3,rxnind] == 0
             @fastmath @inbounds fderiv = kfs[rxnind]*cs[rxnarray[1,rxnind]]*cs[rxnarray[2,rxnind]]
-        else
+        elseif @inbounds rxnarray[4,rxnind] == 0 
             @fastmath @inbounds fderiv = kfs[rxnind]*cs[rxnarray[1,rxnind]]*cs[rxnarray[2,rxnind]]*cs[rxnarray[3,rxnind]]
+        else
+            @fastmath @inbounds fderiv = kfs[rxnind]*cs[rxnarray[1,rxnind]]*cs[rxnarray[2,rxnind]]*cs[rxnarray[3,rxnind]]*cs[rxnarray[4,rxnind]]
         end
 
-        if @inbounds rxnarray[5,rxnind] == 0
-            @fastmath @inbounds rderiv = krevs[rxnind]*cs[rxnarray[4,rxnind]]
-        elseif @inbounds rxnarray[6,rxnind] == 0
-            @fastmath @inbounds rderiv = krevs[rxnind]*cs[rxnarray[4,rxnind]]*cs[rxnarray[5,rxnind]]
+        if @inbounds rxnarray[6,rxnind] == 0
+            @fastmath @inbounds rderiv = krevs[rxnind]*cs[rxnarray[5,rxnind]]
+        elseif @inbounds rxnarray[7,rxnind] == 0
+            @fastmath @inbounds rderiv = krevs[rxnind]*cs[rxnarray[5,rxnind]]*cs[rxnarray[6,rxnind]]
+        elseif @inbounds rxnarray[8,rxnind] == 0 
+            @fastmath @inbounds rderiv = krevs[rxnind]*cs[rxnarray[5,rxnind]]*cs[rxnarray[6,rxnind]]*cs[rxnarray[7,rxnind]]
         else
-            @fastmath @inbounds rderiv = krevs[rxnind]*cs[rxnarray[4,rxnind]]*cs[rxnarray[5,rxnind]]*cs[rxnarray[6,rxnind]]
+            @fastmath @inbounds rderiv = krevs[rxnind]*cs[rxnarray[5,rxnind]]*cs[rxnarray[6,rxnind]]*cs[rxnarray[7,rxnind]]*cs[rxnarray[8,rxnind]]
         end
 
         @fastmath flux = fderiv-rderiv
@@ -2036,23 +2068,43 @@ end
                 @inbounds jacp[rxnarray[2,rxnind],rxnarray[3,rxnind]] -= gderiv
                 @inbounds jacp[rxnarray[3,rxnind],rxnarray[3,rxnind]] -= gderiv
                 @inbounds _spreadreactantpartials!(jacp,gderiv,rxnarray,rxnind,rxnarray[3,rxnind])
+                if @inbounds rxnarray[4,rxnind] !== 0
+                    @inbounds jacp[rxnarray[4,rxnind],rxnarray[1,rxnind]] -= gderiv
+                    @inbounds jacp[rxnarray[4,rxnind],rxnarray[2,rxnind]] -= gderiv
+                    @inbounds jacp[rxnarray[4,rxnind],rxnarray[3,rxnind]] -= gderiv
+                    @inbounds jacp[rxnarray[1,rxnind],rxnarray[4,rxnind]] -= gderiv
+                    @inbounds jacp[rxnarray[2,rxnind],rxnarray[4,rxnind]] -= gderiv
+                    @inbounds jacp[rxnarray[3,rxnind],rxnarray[4,rxnind]] -= gderiv
+                    @inbounds jacp[rxnarray[4,rxnind],rxnarray[4,rxnind]] -= gderiv
+                    @inbounds _spreadreactantpartials!(jacp,gderiv,rxnarray,rxnind,rxnarray[4,rxnind])
+                end
             end
         end
 
-        @inbounds jacp[rxnarray[4,rxnind],rxnarray[4,rxnind]] -= gderiv
-        @inbounds _spreadproductpartials!(jacp,gderiv,rxnarray,rxnind,rxnarray[4,rxnind])
-        if @inbounds rxnarray[5,rxnind] !== 0
-            @inbounds jacp[rxnarray[5,rxnind],rxnarray[4,rxnind]] -= gderiv
-            @inbounds jacp[rxnarray[4,rxnind],rxnarray[5,rxnind]] -= gderiv
-            @inbounds jacp[rxnarray[5,rxnind],rxnarray[5,rxnind]] -= gderiv
-            @inbounds _spreadproductpartials!(jacp,gderiv,rxnarray,rxnind,rxnarray[5,rxnind])
-            if @inbounds rxnarray[6,rxnind] !== 0
-                @inbounds jacp[rxnarray[6,rxnind],rxnarray[4,rxnind]] -= gderiv
-                @inbounds jacp[rxnarray[6,rxnind],rxnarray[5,rxnind]] -= gderiv
-                @inbounds jacp[rxnarray[4,rxnind],rxnarray[6,rxnind]] -= gderiv
-                @inbounds jacp[rxnarray[5,rxnind],rxnarray[6,rxnind]] -= gderiv
-                @inbounds jacp[rxnarray[6,rxnind],rxnarray[6,rxnind]] -= gderiv
-                @inbounds _spreadproductpartials!(jacp,gderiv,rxnarray,rxnind,rxnarray[6,rxnind])
+        @inbounds jacp[rxnarray[5,rxnind],rxnarray[5,rxnind]] -= gderiv
+        @inbounds _spreadproductpartials!(jacp,gderiv,rxnarray,rxnind,rxnarray[5,rxnind])
+        if @inbounds rxnarray[6,rxnind] !== 0
+            @inbounds jacp[rxnarray[6,rxnind],rxnarray[5,rxnind]] -= gderiv
+            @inbounds jacp[rxnarray[5,rxnind],rxnarray[6,rxnind]] -= gderiv
+            @inbounds jacp[rxnarray[6,rxnind],rxnarray[6,rxnind]] -= gderiv
+            @inbounds _spreadproductpartials!(jacp,gderiv,rxnarray,rxnind,rxnarray[6,rxnind])
+            if @inbounds rxnarray[7,rxnind] !== 0
+                @inbounds jacp[rxnarray[7,rxnind],rxnarray[5,rxnind]] -= gderiv
+                @inbounds jacp[rxnarray[7,rxnind],rxnarray[6,rxnind]] -= gderiv
+                @inbounds jacp[rxnarray[5,rxnind],rxnarray[7,rxnind]] -= gderiv
+                @inbounds jacp[rxnarray[6,rxnind],rxnarray[7,rxnind]] -= gderiv
+                @inbounds jacp[rxnarray[7,rxnind],rxnarray[7,rxnind]] -= gderiv
+                @inbounds _spreadproductpartials!(jacp,gderiv,rxnarray,rxnind,rxnarray[7,rxnind])
+                if @inbounds rxnarray[8,rxnind] !== 0
+                    @inbounds jacp[rxnarray[8,rxnind],rxnarray[5,rxnind]] -= gderiv
+                    @inbounds jacp[rxnarray[8,rxnind],rxnarray[6,rxnind]] -= gderiv
+                    @inbounds jacp[rxnarray[8,rxnind],rxnarray[7,rxnind]] -= gderiv
+                    @inbounds jacp[rxnarray[5,rxnind],rxnarray[8,rxnind]] -= gderiv
+                    @inbounds jacp[rxnarray[6,rxnind],rxnarray[8,rxnind]] -= gderiv
+                    @inbounds jacp[rxnarray[7,rxnind],rxnarray[8,rxnind]] -= gderiv
+                    @inbounds jacp[rxnarray[8,rxnind],rxnarray[8,rxnind]] -= gderiv
+                    @inbounds _spreadproductpartials!(jacp,gderiv,rxnarray,rxnind,rxnarray[8,rxnind])
+                end
             end
         end
     end
@@ -2066,16 +2118,20 @@ end
             @fastmath @inbounds fderiv = kfs[rxnind]*kfs[rxnind]/(p[Nspcs+rxnind]*p[Nspcs+rxnind])*cs[rxnarray[1,rxnind]]
         elseif @inbounds rxnarray[3,rxnind] == 0
             @fastmath @inbounds fderiv = kfs[rxnind]*kfs[rxnind]/(p[Nspcs+rxnind]*p[Nspcs+rxnind])*cs[rxnarray[1,rxnind]]*cs[rxnarray[2,rxnind]]
-        else
+        elseif rxnarray[4,rxnind] == 0 
             @fastmath @inbounds fderiv = kfs[rxnind]*kfs[rxnind]/(p[Nspcs+rxnind]*p[Nspcs+rxnind])*cs[rxnarray[1,rxnind]]*cs[rxnarray[2,rxnind]]*cs[rxnarray[3,rxnind]]
+        else
+            @fastmath @inbounds fderiv = kfs[rxnind]*kfs[rxnind]/(p[Nspcs+rxnind]*p[Nspcs+rxnind])*cs[rxnarray[1,rxnind]]*cs[rxnarray[2,rxnind]]*cs[rxnarray[3,rxnind]]*cs[rxnarray[4,rxnind]]
         end
 
-        if @inbounds rxnarray[5,rxnind] == 0
-            @fastmath @inbounds rderiv = kfs[rxnind]*krevs[rxnind]/(p[Nspcs+rxnind]*p[Nspcs+rxnind])*cs[rxnarray[4,rxnind]]
-        elseif @inbounds rxnarray[6,rxnind] == 0
-            @fastmath @inbounds rderiv = kfs[rxnind]*krevs[rxnind]/(p[Nspcs+rxnind]*p[Nspcs+rxnind])*cs[rxnarray[4,rxnind]]*cs[rxnarray[5,rxnind]]
+        if @inbounds rxnarray[6,rxnind] == 0
+            @fastmath @inbounds rderiv = kfs[rxnind]*krevs[rxnind]/(p[Nspcs+rxnind]*p[Nspcs+rxnind])*cs[rxnarray[5,rxnind]]
+        elseif @inbounds rxnarray[7,rxnind] == 0
+            @fastmath @inbounds rderiv = kfs[rxnind]*krevs[rxnind]/(p[Nspcs+rxnind]*p[Nspcs+rxnind])*cs[rxnarray[5,rxnind]]*cs[rxnarray[6,rxnind]]
+        elseif @inbounds rxnarray[8,rxnind] == 0 
+            @fastmath @inbounds rderiv = kfs[rxnind]*krevs[rxnind]/(p[Nspcs+rxnind]*p[Nspcs+rxnind])*cs[rxnarray[5,rxnind]]*cs[rxnarray[6,rxnind]]*cs[rxnarray[7,rxnind]]
         else
-            @fastmath @inbounds rderiv = kfs[rxnind]*krevs[rxnind]/(p[Nspcs+rxnind]*p[Nspcs+rxnind])*cs[rxnarray[4,rxnind]]*cs[rxnarray[5,rxnind]]*cs[rxnarray[6,rxnind]]
+            @fastmath @inbounds rderiv = kfs[rxnind]*krevs[rxnind]/(p[Nspcs+rxnind]*p[Nspcs+rxnind])*cs[rxnarray[5,rxnind]]*cs[rxnarray[6,rxnind]]*cs[rxnarray[7,rxnind]]*cs[rxnarray[8,rxnind]]
         end
 
         @fastmath flux = fderiv-rderiv
@@ -2098,23 +2154,43 @@ end
                 @inbounds jacp[rxnarray[2,rxnind],rxnarray[3,rxnind]] -= gderiv
                 @inbounds jacp[rxnarray[3,rxnind],rxnarray[3,rxnind]] -= gderiv
                 @inbounds _spreadreactantpartials!(jacp,gderiv,rxnarray,rxnind,rxnarray[3,rxnind])
+                if @inbounds rxnarray[4,rxnind] !== 0
+                    @inbounds jacp[rxnarray[4,rxnind],rxnarray[1,rxnind]] -= gderiv
+                    @inbounds jacp[rxnarray[4,rxnind],rxnarray[2,rxnind]] -= gderiv
+                    @inbounds jacp[rxnarray[4,rxnind],rxnarray[3,rxnind]] -= gderiv
+                    @inbounds jacp[rxnarray[1,rxnind],rxnarray[4,rxnind]] -= gderiv
+                    @inbounds jacp[rxnarray[2,rxnind],rxnarray[4,rxnind]] -= gderiv
+                    @inbounds jacp[rxnarray[3,rxnind],rxnarray[4,rxnind]] -= gderiv
+                    @inbounds jacp[rxnarray[4,rxnind],rxnarray[4,rxnind]] -= gderiv
+                    @inbounds _spreadreactantpartials!(jacp,gderiv,rxnarray,rxnind,rxnarray[4,rxnind])
+                end
             end
         end
 
-        @inbounds jacp[rxnarray[4,rxnind],rxnarray[4,rxnind]] -= gderiv
-        @inbounds _spreadproductpartials!(jacp,gderiv,rxnarray,rxnind,rxnarray[4,rxnind])
-        if @inbounds rxnarray[5,rxnind] !== 0
-            @inbounds jacp[rxnarray[5,rxnind],rxnarray[4,rxnind]] -= gderiv
-            @inbounds jacp[rxnarray[4,rxnind],rxnarray[5,rxnind]] -= gderiv
-            @inbounds jacp[rxnarray[5,rxnind],rxnarray[5,rxnind]] -= gderiv
-            @inbounds _spreadproductpartials!(jacp,gderiv,rxnarray,rxnind,rxnarray[5,rxnind])
-            if @inbounds rxnarray[6,rxnind] !== 0
-                @inbounds jacp[rxnarray[6,rxnind],rxnarray[4,rxnind]] -= gderiv
-                @inbounds jacp[rxnarray[6,rxnind],rxnarray[5,rxnind]] -= gderiv
-                @inbounds jacp[rxnarray[4,rxnind],rxnarray[6,rxnind]] -= gderiv
-                @inbounds jacp[rxnarray[5,rxnind],rxnarray[6,rxnind]] -= gderiv
-                @inbounds jacp[rxnarray[6,rxnind],rxnarray[6,rxnind]] -= gderiv
-                @inbounds _spreadproductpartials!(jacp,gderiv,rxnarray,rxnind,rxnarray[6,rxnind])
+        @inbounds jacp[rxnarray[5,rxnind],rxnarray[5,rxnind]] -= gderiv
+        @inbounds _spreadproductpartials!(jacp,gderiv,rxnarray,rxnind,rxnarray[5,rxnind])
+        if @inbounds rxnarray[6,rxnind] !== 0
+            @inbounds jacp[rxnarray[6,rxnind],rxnarray[5,rxnind]] -= gderiv
+            @inbounds jacp[rxnarray[5,rxnind],rxnarray[6,rxnind]] -= gderiv
+            @inbounds jacp[rxnarray[6,rxnind],rxnarray[6,rxnind]] -= gderiv
+            @inbounds _spreadproductpartials!(jacp,gderiv,rxnarray,rxnind,rxnarray[6,rxnind])
+            if @inbounds rxnarray[7,rxnind] !== 0
+                @inbounds jacp[rxnarray[7,rxnind],rxnarray[5,rxnind]] -= gderiv
+                @inbounds jacp[rxnarray[7,rxnind],rxnarray[6,rxnind]] -= gderiv
+                @inbounds jacp[rxnarray[5,rxnind],rxnarray[7,rxnind]] -= gderiv
+                @inbounds jacp[rxnarray[6,rxnind],rxnarray[7,rxnind]] -= gderiv
+                @inbounds jacp[rxnarray[7,rxnind],rxnarray[7,rxnind]] -= gderiv
+                @inbounds _spreadproductpartials!(jacp,gderiv,rxnarray,rxnind,rxnarray[7,rxnind])
+                if @inbounds rxnarray[8,rxnind] !== 0
+                    @inbounds jacp[rxnarray[8,rxnind],rxnarray[5,rxnind]] -= gderiv
+                    @inbounds jacp[rxnarray[8,rxnind],rxnarray[6,rxnind]] -= gderiv
+                    @inbounds jacp[rxnarray[8,rxnind],rxnarray[7,rxnind]] -= gderiv
+                    @inbounds jacp[rxnarray[5,rxnind],rxnarray[8,rxnind]] -= gderiv
+                    @inbounds jacp[rxnarray[6,rxnind],rxnarray[8,rxnind]] -= gderiv
+                    @inbounds jacp[rxnarray[7,rxnind],rxnarray[8,rxnind]] -= gderiv
+                    @inbounds jacp[rxnarray[8,rxnind],rxnarray[8,rxnind]] -= gderiv
+                    @inbounds _spreadproductpartials!(jacp,gderiv,rxnarray,rxnind,rxnarray[8,rxnind])
+                end
             end
         end
     end
