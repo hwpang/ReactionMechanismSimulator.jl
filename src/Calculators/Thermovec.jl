@@ -66,7 +66,8 @@ end
     retrieve the nasa polynomial corresponding to the T range
     """
     index = findfirst(isequal(1), T .<= getfield.(nasa.polys,:Tmax))
-    return ifelse(index != nothing, nasa.polys[index], nasa.polys[end])
+    index = ifelse(index != nothing, index, len(nasa.polys))
+    return nasa.polys[index]
 end
 export selectPoly
 
