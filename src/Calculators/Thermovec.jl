@@ -65,7 +65,7 @@ end
     """
     retrieve the nasa polynomial corresponding to the T range
     """
-    index = findfirst(isequal(1), T .<= getfield.(domain.phase.vecthermo.polys,:Tmax))
+    index = findfirst(isequal(1), T .<= getfield.(dnasa.polys,:Tmax))
     return ifelse(index != nothing, nasa.polys[index], nasa.polys[end])
 end
 export selectPoly
