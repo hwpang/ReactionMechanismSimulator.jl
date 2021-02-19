@@ -61,7 +61,7 @@ function NASAvec(nasas::B) where {B<:Array}
     return NASAvec(polys=polyvecs) 
         
 end
-@inline function selectPoly_(nasa,T::N) where {N<:Real}
+@inline function selectPoly(nasa::NASAvec,T::N) where {N<:Real}
     """
     retrieve the nasa polynomial corresponding to the T range
     """
