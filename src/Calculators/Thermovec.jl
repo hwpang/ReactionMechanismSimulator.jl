@@ -61,14 +61,12 @@ function NASAvec(nasas::B) where {B<:Array}
     return NASAvec(polys=polyvecs) 
         
 end
-@inline function selectPoly(nasa::NASAvec,T::N) where {N<:Real}
+@inline function selectPoly_(nasa,T::N) where {N<:Real}
     """
     retrieve the nasa polynomial corresponding to the T range
     """
-    for p in nasa.polys
-        ifelse(T<=p.Tmax,return p)
-    end
-    return nasa.polys[end]
+    index = findfirst(isequal(1), T .<= getfield.(domain.phase.vecthermo.polys,:Tmax))
+    return ifelse(index != nothing, nasa.polys[index], nasa.polys[end])
 end
 export selectPoly
 
