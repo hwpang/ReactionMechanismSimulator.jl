@@ -886,8 +886,8 @@ end
     Gs = zeros(length(d.phase.species))
     Us = zeros(length(d.phase.species))
     Cvave = 0.0
-    cpdivR,hdivRT,sdivR = calcHSCpdless(d.phase.vecthermo,T)
-    @views @fastmath hdivRT .+= p[d.parameterindexes[1]-1+1:d.parameterindexes[1]-1+length(d.phase.species)]./(R*T)
+    cpdivR,hdivRT1,sdivR = calcHSCpdless(d.phase.vecthermo,T)
+    @views @fastmath hdivRT = hdivRT1 .+ p[d.parameterindexes[1]-1+1:d.parameterindexes[1]-1+length(d.phase.species)]./(R*T)
     @fastmath Gs = (hdivRT.-sdivR)*(R*T)
     @fastmath Us = (hdivRT.-1.0)*(R*T)
     @fastmath Cvave = dot(cpdivR,ns)
