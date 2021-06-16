@@ -3,6 +3,7 @@ using SparseArrays
 using Images
 using Colors
 import Base: length
+using PyPlot
 
 struct FluxDiagram{T<:Real}
     ts::Array{T,1}
@@ -43,14 +44,21 @@ function drawspc(spc::Species,path::String=".")
     end
     if spc.adjlist != ""
         mol = molecule.Molecule().from_adjacency_list(spc.adjlist)
+        mol.draw(joinpath(path,fname))
     elseif spc.inchi != ""
         mol = molecule.Molecule().from_inchi(spc.inchi)
+        mol.draw(joinpath(path,fname))
     elseif spc.smiles != ""
         mol = molecule.Molecule().from_smiles(spc.smiles)
+        mol.draw(joinpath(path,fname))
     else
-        throw(error("no smiles or inchi for molecule $name"))
+        figure(figsize=(1,1))
+        plot()
+        annotate(name,xy=(0.5, 0.5), xycoords="axes fraction")
+        axis("off")
+        savefig(joinpath(path,fname))
     end
-    mol.draw(joinpath(path,fname))
+    
 end
 export drawspc
 
