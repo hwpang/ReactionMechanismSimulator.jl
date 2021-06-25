@@ -54,7 +54,7 @@ function drawspc(spc::Species,path::String=".")
     else
         figure(figsize=(1,1))
         plot()
-        annotate(name,xy=(0.5, 0.5), xycoords="axes fraction")
+        annotate(name,xy=(0.1, 0.1), xycoords="axes fraction",size=16)
         axis("off")
         savefig(joinpath(path,fname))
     end
