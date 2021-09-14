@@ -703,6 +703,119 @@ function ConstantTAPhiDomain(;phase::E2,initialconds::Dict{X,X2},constantspecies
 end
 export ConstantTAPhiDomain
 
+mutable struct ConstantTrhoDomain{N<:AbstractPhase,S<:Integer,W<:Real, W2<:Real, I<:Integer, Q<:AbstractArray,K1,V1} <: AbstractConstantKDomain
+    phase::N
+    indexes::Q #assumed to be in ascending order
+    parameterindexes::Q
+    constantspeciesinds::Array{S,1}
+    T::Float64
+    rho::Float64
+    A::Float64
+    kfs::Array{W,1}
+    krevs::Array{W,1}
+    kfsnondiff::Array{W,1}
+    efficiencyinds::Array{I,1}
+    Gs::Array{W,1}
+    rxnfluxarray::Array{Int64,2}
+    rxnarray::Array{Int64,2}
+    mu::W
+    diffusivity::Array{W,1}
+    jacobian::Array{W,2}
+    sensitivity::Bool
+    alternativepformat::Bool
+    jacuptodate::MArray{Tuple{1},Bool,1,1}
+    t::MArray{Tuple{1},W2,1,1}
+    p::Array{W,1}
+    thermovariabledict::Dict{String,Int64}
+    fluxmapping::Dict{K1,V1}
+    Mws::Array{Float64,1}
+    solidindexes::Array{Int64,1}
+    kfdisabledinds::Array{Int64,1}
+    krevdisabledinds::Array{Int64,1}
+    epsilon::Float64
+    diffusionlength::Float64
+end
+function ConstantTrhoDomain(;phase::Z,initialconds::Dict{X,E},fluxmapping::Dict{X1,E1},solidspecies::Array{X3,1},kfdisabledinds::Array{Int64,1}=Array{Int64,1}(),krevdisabledinds::Array{Int64,1}=Array{Int64,1}(),epsilon::Float64=1.0,diffusionlength::Float64=Inf,constantspecies::Array{X4,1}=Array{String,1}(),
+    sparse::Bool=false,sensitivity::Bool=false) where {X,E,X1,E1,X3,X4,Z<:AbstractPhase}
+    #set conditions and initialconditions
+    T = 0.0
+    rho = 0.0
+    mass = 0.0
+    P = 1.0e8
+    A = 0.0
+    y0 = zeros(length(phase.species)+1) #track mass
+    spcnames = getfield.(phase.species,:name)
+    for (key,val) in initialconds
+        if key == "T"
+            T = val
+        elseif key == "P"
+            throw(error("ConstantTrhoDomain cannot specify P"))
+        elseif key == "A"
+            A = val
+        elseif key == "rho"
+            rho = val
+        elseif key == "mass"
+            mass = val
+            y0[end] = val
+        else
+            ind = findfirst(isequal(key),spcnames)
+            @assert typeof(ind)<: Integer  "$key not found in species list: $spcnames"
+            y0[ind] = val
+        end
+    end
+    @assert T != 0.0
+    @assert rho != 0.0
+    @assert mass != 0.0
+    @assert A != 0.0
+
+    ns = y0[1:end-1]
+    N = sum(ns)
+    V = mass/rho
+
+    if length(constantspecies) > 0
+        constspcinds = [findfirst(isequal(k),spcnames) for k in constantspecies]
+    else
+        constspcinds = Array{Int64,1}()
+    end
+    efficiencyinds = [rxn.index for rxn in phase.reactions if typeof(rxn.kinetics)<:AbstractFalloffRate && length(rxn.kinetics.efficiencies) > 0]
+    Gs = calcgibbs(phase,T)
+    if :solvent in fieldnames(typeof(phase)) && typeof(phase.solvent) != EmptySolvent
+        mu = phase.solvent.mu(T)
+    else
+        mu = 0.0
+    end
+    if phase.diffusionlimited
+        diffs = [x(T=T,mu=mu,P=P) for x in getfield.(phase.species,:diffusion)]
+    else
+        diffs = Array{Float64,1}()
+    end
+
+    C = N/V
+    kfs,krevs = getkfkrevs(phase,T,P,C,N,ns,Gs,diffs,V,0.0)
+    kfsnondiff = getkfs(phase,T,P,C,ns,V,0.0)
+                                                                                                    
+    for ind in kfdisabledinds
+        kfs[ind] = 0.0
+    end
+    for ind in krevdisabledinds
+        krevs[ind] = 0.0
+    end
+    p = vcat(Gs,kfsnondiff)
+    if sparse
+        jacobian=zeros(typeof(T),length(phase.species),length(phase.species))
+    else
+        jacobian=zeros(typeof(T),length(phase.species),length(phase.species))
+    end
+    rxnfluxarray = getreactionindices(phase,fluxmapping)
+    rxnarray  = getreactionindices(phase)
+    Mws = getfield.(phase.species,:molecularweight)
+    solidindexes = sort([findfirst(x->x==name,spcnames) for name in solidspecies])
+
+    return ConstantTrhoDomain(phase,[phase.species[1].index,phase.species[end].index,phase.species[end].index+1],[1,length(phase.species)+length(phase.reactions)],constspcinds,
+        T,rho,A,kfs,krevs,kfsnondiff,efficiencyinds,Gs,rxnfluxarray,rxnarray,mu,diffs,jacobian,sensitivity,false,MVector(false),MVector(0.0),p,Dict("mass"=>phase.species[end].index+1),fluxmapping,Mws,solidindexes,kfdisabledinds,krevdisabledinds,epsilon,diffusionlength), y0, p
+end
+export ConstantTrhoDomain
+
 @inline function calcthermo(d::ConstantTPDomain{W,Y},y::J,t::Q,p::W3=DiffEqBase.NullParameters()) where {W3<:DiffEqBase.NullParameters,W<:IdealGas,Y<:Integer,J<:Array{Float64,1},Q} #no parameter input
     ns = y[d.indexes[1]:d.indexes[2]]
     V = y[d.indexes[3]]
