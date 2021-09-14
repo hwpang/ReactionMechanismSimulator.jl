@@ -65,6 +65,68 @@ function evaluate(ri::ReactiveInternalInterface,dydt,domains,T1,T2,phi1,phi2,Gs1
 end
 export evaluate
 
+struct DiffusiveInternalInterface{T,B,N} <: AbstractInternalInterface
+    domain1::T
+    domain2::N
+    diffusivespcnames::Array{String,1}
+    diffusionarray::B
+    parameterindexes::Array{Int64,1}
+    A::Float64
+    L::Float64
+    domaininds::Array{Int64,1}
+    p::Array{Float64,1}
+end
+function DiffusiveInternalInterface(domain1,domain2,domains,diffusivespcnames,A;L=1e-6)
+    domaininds = Array{Int64,1}([0,0])
+    diffusionarray = getinterfacediffusioninds(domain1,domain2,diffusivespcnames)
+    for (i,domain) in enumerate(domains)
+        if domain==domain1
+            domaininds[1]=i
+        elseif domain==domain2
+            domaininds[2]=i
+        end
+    end
+    return DiffusiveInternalInterface(domain1,domain2,diffusivespcnames,diffusionarray,[1,length(diffusivespcnames)],A,L,domaininds,ones(length(diffusivespcnames))),ones(length(diffusivespcnames))
+end
+export DiffusiveInternalInterface
+
+function getdiffs(di::DiffusiveInternalInterface,T1,T2) where {Q}
+    phase = di.domain1.phase
+    if :solvent in fieldnames(typeof(phase)) && typeof(phase.solvent) != EmptySolvent
+        mu = phase.solvent.mu(T1)
+    else
+        mu = 0.0
+    end
+    P = 1.0e8
+    diffs = [x(T=T1,mu=mu,P=P) for x in getfield.(phase.species,:diffusion)[di.diffusionarray[1,:]]]
+    return diffs
+end
+
+function evaluate(di::DiffusiveInternalInterface,dydt,V1,V2,T1,T2,cstot,p::W) where {W<:DiffEqBase.NullParameters}
+    diffs = getdiffs(di,T1,T2)
+    if isa(di.domain1,ConstantTrhoDomain)
+        L = V1/di.domain1.A
+    elseif isa(di.domain2,ConstantTrhoDomain)
+        L = V2/di.domain2.A
+    else
+        L = di.L
+    end
+    addreactionratecontributions!(dydt,di.diffusionarray,cstot,diffs./L,diffs./L,di.A)
+end
+
+function evaluate(di::DiffusiveInternalInterface,dydt,V1,V2,T1,T2,cstot,p)
+    diffs = getdiffs(di,T1,T2)
+    if isa(di.domain1,ConstantTrhoDomain)
+        L = V1/di.domain1.A
+    elseif isa(di.domain2,ConstantTrhoDomain)
+        L = V2/di.domain2.A
+    else
+        L = di.L
+    end
+    addreactionratecontributions!(dydt,di.diffusionarray,cstot,diffs./L.*p[di.parameterindexes[1]:di.parameterindexes[2]],diffs./L.*p[di.parameterindexes[1]:di.parameterindexes[2]],di.A)
+end
+export evaluate
+
 
 struct ReactiveInternalInterfaceConstantTPhi{J,N,B,B2,B3,C,C2,Q<:AbstractReaction} <: AbstractReactiveInternalInterface
     domain1::J
@@ -185,6 +247,20 @@ function getinterfacereactioninds(domain1,domain2,reactions)
             end
             indices[j+3,i] = isfirst ? ind : ind+N1
         end
+    end
+    return indices
+end
+
+function getinterfacediffusioninds(domain1,domain2,diffusivespcnames)
+    indices = zeros(Int64,(6,length(diffusivespcnames)))
+    N1 = length(domain1.phase.species)
+    spcnames1 = getfield.(domain1.phase.species,:name)
+    spcnames2 = getfield.(domain2.phase.species,:name) 
+    for (i,name) in enumerate(diffusivespcnames)
+        ind1 = findfirst(isequal(name),spcnames1)
+        ind2 = findfirst(isequal(name),spcnames2)
+        indices[1,i] = ind1
+        indices[4,i] = ind2+N1
     end
     return indices
 end
