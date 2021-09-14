@@ -75,6 +75,16 @@ function Reactor(domains::T,y0s::W,tspan::W2,interfaces::Z=Tuple(),ps::X=DiffEqB
         for (thermovar,ind) in domain.thermovariabledict
             domain.thermovariabledict[thermovar] += k-1
         end
+        if isa(domain,ConstantTrhoDomain)
+            for i = 1:size(domain.rxnfluxarray)[1], j = 1:size(domain.rxnfluxarray)[2]
+                if domain.rxnfluxarray[i,j] != 0
+                    domain.rxnfluxarray[i,j] += k-1
+                end
+            end
+            for i in 1:length(domain.solidindexes)
+                domain.solidindexes[i] += k-1
+            end
+        end
         domain.indexes[1] = k
         k += Nspcs
         domain.indexes[2] = k-1
