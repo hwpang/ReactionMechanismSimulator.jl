@@ -3219,6 +3219,25 @@ export jacobianp!
 function getreactionindices(ig::Q) where {Q<:AbstractPhase}
     return deepcopy(ig.rxnarray)
 end
+
+function getreactionindices(phase::IdealDiluteSolution,fluxmapping::Dict{K1,V1}) where {Q<:AbstractPhase,K1,V1,K2,V2}
+    spcnummax = 0
+    for rxnind in keys(fluxmapping)
+        spcnummax = max(length.(values(fluxmapping[rxnind]))...) > spcnummax ? max(length.(values(fluxmapping[rxnind]))...) : spcnummax
+    end
+
+    rxnfluxarray = zeros(Int64,(spcnummax*2,length(phase.reactions)))
+    for i in 1:size(phase.rxnarray)[2]
+        reactantinds = collect(Iterators.flatten([fluxmapping[i][ind] for ind in phase.rxnarray[1:3,i] if ind !=0]))
+        rxnfluxarray[1:length(reactantinds),i] = reactantinds
+
+        productinds = collect(Iterators.flatten([fluxmapping[i][ind] for ind in phase.rxnarray[4:6,i] if ind !=0]))
+        rxnfluxarray[spcnummax+1:spcnummax+length(productinds),i] = productinds
+    end
+
+    return rxnfluxarray
+end
+
 export getreactionindices
 
 @inline function getsensspcsrxns(domain::D,ind::Int64) where {D<:AbstractDomain}
