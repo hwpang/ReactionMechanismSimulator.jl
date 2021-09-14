@@ -1946,7 +1946,7 @@ end
         end
     end
 end
-@inline function calcdomainderivatives!(d::ConstantTrhoDomain{W,Y},dydt::Z1,interfaces::Z2;t::Z3,T::Z4,P::Z5,Us::Array{Z6,1},Hs::Array{Z7,1},V::Z8,C::Z9,ns::Z10s,N::Z11,Cvave::Z12) where {Z1,Z2,Z3,Z4,Z5,Z6,Z7,Z8,Z9,Z10,Z11,Z12,W<:IdealDiluteSolution,Y<:Integer}
+@inline function calcdomainderivatives!(d::ConstantTrhoDomain{W,Y},dydt::Z1,interfaces::Z2;t::Z3,T::Z4,P::Z5,Us::Array{Z6,1},Hs::Array{Z7,1},V::Z8,C::Z9,ns::Z10,N::Z11,Cvave::Z12) where {Z1,Z2,Z3,Z4,Z5,Z6,Z7,Z8,Z9,Z10,Z11,Z12,W<:IdealDiluteSolution,Y<:Integer}
 
     @simd for ind in d.constantspeciesinds #make dydt zero for constant species
         @inbounds dydt[ind] = dydt[d.indexes[3]]/d.rho*(ns[ind-d.indexes[1]+1]/V) #dydt = dV*C for liquid phase
