@@ -453,14 +453,34 @@ end
     vcpdivR[1] = cpdivR
     vphi = Array{Any,1}(undef,length(domains))
     vphi[1] = phi
-    addreactionratecontributions!(dydt,domain.rxnarray,cstot,kfs,krevs)
-    @views dydt[domain.indexes[1]:domain.indexes[2]] .*= V
+    if isa(domain,ConstantTrhoDomain)
+        Mwstot[domain.indexes[1]:domain.indexes[2]] .= domain.Mws
+        addreactionratecontributions!(dydt,domain.rxnfluxarray,domain.rxnarray,cstot,kfs,krevs,domain.indexes[3],Mwstot,domain.solidindexes)
+        if V/domain.A < domain.diffusionlength
+            @views dydt[domain.indexes[1]:domain.indexes[end]] .*= V
+        else
+            @views dydt[domain.indexes[1]:domain.indexes[end]] .*= domain.diffusionlength*domain.A
+        end
+    else
+        addreactionratecontributions!(dydt,domain.rxnarray,cstot,kfs,krevs)
+        @views dydt[domain.indexes[1]:domain.indexes[2]] .*= V
+    end
     for (i,domain) in enumerate(@views domains[2:end])
         k = i + 1
         vns[k],vcs[k],vT[k],vP[k],vV[k],vC[k],vN[k],vmu[k],vkfs[k],vkrevs[k],vHs[k],vUs[k],vGs[k],vdiffs[k],vCvave[k],vcpdivR[k],vphi[k] = calcthermo(domain,y,t,p)
         cstot[domain.indexes[1]:domain.indexes[2]] .= vcs[k]
-        addreactionratecontributions!(dydt,domain.rxnarray,cstot,vkfs[k],vkrevs[k])
-        @views dydt[domain.indexes[1]:domain.indexes[2]] .*= vV[k]
+        if isa(domain,ConstantTrhoDomain)
+            Mwstot[domain.indexes[1]:domain.indexes[2]] .= domain.Mws
+            addreactionratecontributions!(dydt,domain.rxnfluxarray,domain.rxnarray,cstot,vkfs[k],vkrevs[k],domain.indexes[3],Mwstot,domain.solidindexes)
+            if vV[k]/domain.A < domain.diffusionlength
+                @views dydt[domain.indexes[1]:domain.indexes[end]] .*= vV[k]
+            else
+                @views dydt[domain.indexes[1]:domain.indexes[end]] .*= domain.diffusionlength*domain.A
+            end
+        else
+            addreactionratecontributions!(dydt,domain.rxnarray,cstot,vkfs[k],vkrevs[k])
+            @views dydt[domain.indexes[1]:domain.indexes[2]] .*= vV[k]
+        end
     end
     for (i,inter) in enumerate(interfaces)
         if isa(inter,AbstractReactiveInternalInterface)
