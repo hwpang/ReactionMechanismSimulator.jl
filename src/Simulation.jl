@@ -458,8 +458,8 @@ end
 
 function getadjointsensitivities(syssim::Q,bsol::W3,target::String,solver::W;sensalg::W2=InterpolatingAdjoint(autojacvec=ReverseDiffVJP(false)),
     abstol::Float64=1e-6,reltol::Float64=1e-3,normalize=true,kwargs...) where {Q,W,W2,W3}
-    @assert target in bsol.names || target in ["T","V","P"]
-    if target in ["T","V","P"]
+    @assert target in bsol.names || target in ["T","V","P","mass"]
+    if target in ["T","V","P","mass"]
         if haskey(bsol.domain.thermovariabledict, target)
             ind = bsol.domain.thermovariabledict[target]
         else
@@ -492,7 +492,7 @@ function getadjointsensitivities(syssim::Q,bsol::W3,target::String,solver::W;sen
         for domain in domains
            dpadj[domain.parameterindexes[1]+length(domain.phase.species):domain.parameterindexes[2]] .*= syssim.p[domain.parameterindexes[1]+length(domain.phase.species):domain.parameterindexes[2]]
         end
-        if !(target in ["T","V","P"])
+        if !(target in ["T","V","P","mass"])
             dpadj ./= bsol.sol(bsol.sol.t[end])[ind]
         end
     end
