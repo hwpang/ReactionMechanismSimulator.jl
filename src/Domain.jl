@@ -1946,6 +1946,20 @@ end
         end
     end
 end
+@inline function calcdomainderivatives!(d::ConstantTrhoDomain{W,Y},dydt::Z1,interfaces::Z2;t::Z3,T::Z4,P::Z5,Us::Array{Z6,1},Hs::Array{Z7,1},V::Z8,C::Z9,ns::Array{Z10,1},N::Z11,Cvave::Z12) where {Z1,Z2,Z3,Z4,Z5,Z6,Z7,Z8,Z9,Z10,Z11,Z12,W<:IdealDiluteSolution,Y<:Integer}
+
+    @simd for ind in d.constantspeciesinds #make dydt zero for constant species
+        @inbounds dydt[ind] = dydt[d.indexes[3]]/d.rho*(ns[ind-d.indexes[1]+1]/V) #dydt = dV*C for liquid phase
+    end
+
+    for inter in interfaces
+        if isa(inter,Inlet) && d == inter.domain
+            dydt[d.indexes[1]:d.indexes[2]] .+= inter.y.*inter.F(t)
+        elseif isa(inter,Outlet) && d == inter.domain
+            dydt[d.indexes[1]:d.indexes[2]] .-= inter.F(t).*ns./N
+        end
+    end
+end
 export calcdomainderivatives!
 
 @inline function jacobianyefficiencyderiv!(jac::S,domain::Union{ConstantTPDomain,ConstantPDomain,ParametrizedTPDomain,ParametrizedPDomain},kinetics::AbstractFalloffRate,efficiencies::Dict{Int64,Float64},rxnarray::Array{Int64,2},rxnind::Int64,Vind::Int64,cs::Array{Float64,1},T::Float64,V::Float64,C::Float64,Ceff::Float64,Kc::Float64) where {S<:AbstractArray}
