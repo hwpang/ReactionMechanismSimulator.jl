@@ -256,6 +256,62 @@ export getrates
     end
 end
 
+@inline function addreactionratecontributions!(dydt::Q,rxnfluxarray::Array{W2,2},rxnarray::Array{Int64,2},cs::W,kfs::Z,krevs::Y,massindex::Int64,Mws::Array{Float64,1},solidindexes::Array{Int64,1}) where {Q,Z,Y,T,W,W2}
+    (numspcs,numrxns) = size(rxnfluxarray)
+    half = Int(numspcs/2)
+    @inbounds @simd for i = 1:numrxns
+
+        fR = 0
+        if @inbounds rxnarray[1,i] != 0
+            fR = kfs[i]*cs[rxnarray[1,i]]
+            for j = 2:3
+                if @inbounds rxnarray[j,i] != 0
+                    @inbounds @fastmath fR *= cs[rxnarray[j,i]]
+                end
+            end
+        end
+
+        rR = 0
+        if @inbounds rxnarray[4,i] !=0
+            rR = krevs[i]*cs[rxnarray[4,i]]
+            for j = 5:6
+                if @inbounds rxnarray[j,i] != 0
+                    @inbounds @fastmath rR *= cs[rxnarray[j,i]]
+                end
+            end
+        end
+
+        @fastmath R = fR - rR
+
+        @inbounds @fastmath dydt[rxnfluxarray[1,i]] -= R
+        if !(rxnfluxarray[1,i] in solidindexes)
+            dydt[massindex] += R * Mws[rxnfluxarray[1,i]]
+        end
+
+        for j = 2:half
+            if @inbounds rxnfluxarray[j,i] != 0
+                @inbounds @fastmath dydt[rxnfluxarray[j,i]] -= R
+                if !(rxnfluxarray[j,i] in solidindexes)
+                    dydt[massindex] += R * Mws[rxnfluxarray[j,i]]
+                end
+            end
+        end
+
+        @inbounds @fastmath dydt[rxnfluxarray[half+1,i]] += R
+        if !(rxnfluxarray[half+1,i] in solidindexes)
+            dydt[massindex] -= R * Mws[rxnfluxarray[half+1,i]]
+        end
+        for j = half+2:numspcs
+            if @inbounds rxnfluxarray[j,i] != 0
+                @inbounds @fastmath dydt[rxnfluxarray[j,i]] += R
+                if !(rxnfluxarray[j,i] in solidindexes)
+                    dydt[massindex] -= R * Mws[rxnfluxarray[j,i]]
+                end
+            end
+        end
+    end
+end
+
 @inline function addreactionratecontributions!(dydt::Q,rarray::Array{W2,2},cs::W,kfs::Z,krevs::Y,V) where {Q,Z,Y,T,W,W2}
     @inbounds @simd for i = 1:size(rarray)[2]
         if @inbounds rarray[2,i] == 0
