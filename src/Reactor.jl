@@ -397,9 +397,24 @@ export addreactionratecontributionsforwardreverse!
     calcdomainderivatives!(domain,dydt,interfaces;t=t,T=T,P=P,Us=Us,Hs=Hs,V=V,C=C,ns=ns,N=N,Cvave=Cvave)
     return dydt
 end
+@inline function dydtreactor!(dydt::RC,y::U,t::Z,domain::ConstantTrhoDomain{W,Y},interfaces::B;p::RV=DiffEqBase.NullParameters(),sensitivity::Bool=true) where {RC,RV,B<:AbstractArray,Z<:Real,U,J<:Integer,W<:IdealDiluteSolution,Y<:Integer}
+    dydt .= 0.0
+    diffusion_volume = domain.diffusionlength*domain.A
+    massindex = domain.indexes[3]
+    ns,cs,T,P,V,C,N,mu,kfs,krevs,Hs,Us,Gs,diffs,Cvave,cpdivR = calcthermo(domain,y,t,p)
+    addreactionratecontributions!(dydt,domain.rxnfluxarray,domain.rxnarray,cs,kfs,krevs,massindex,domain.Mws,domain.solidindexes)
+    if V/domain.A < domain.diffusionlength
+        dydt .*= V
+    else
+        dydt .*= domain.diffusionlength*domain.A
+    end
+    calcdomainderivatives!(domain,dydt,interfaces;t=t,T=T,P=P,Us=Us,Hs=Hs,V=V,C=C,ns=ns,N=N,Cvave=Cvave)
+    return dydt
+end
 @inline function dydtreactor!(dydt::RC,y::U,t::Z,domains::Q,interfaces::B;p::RV=DiffEqBase.NullParameters(),sensitivity::Bool=true) where {RC,RV,B,Z,U,Q<:Tuple}    
     cstot = similar(y)
     cstot .= 0.0
+    Mwstot = zeros(length(y))
     dydt .= 0.0
     domain = domains[1]
     ns,cs,T,P,V,C,N,mu,kfs,krevs,Hs,Us,Gs,diffs,Cvave,cpdivR,phi = calcthermo(domain,y,t,p)
