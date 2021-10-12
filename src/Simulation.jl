@@ -170,26 +170,26 @@ rate of that species associated with that reaction
 function rops(bsol::Q,t::X) where {Q<:Simulation,X<:Real}
     cs,kfs,krevs = calcthermo(bsol.domain,bsol.sol(t),t)[[2,9,10]]
     V = getdomainsize(bsol,t)
-    if isa(domain,ConstantTrhoDomain)
+    if isa(bsol.domain,ConstantTrhoDomain)
         ropmat = spzeros(length(bsol.domain.phase.reactions),length(bsol.domain.phase.species)+1)
-        (numspcs,numrxns) = size(domain.rxnfluxarray)
+        numspcs = size(bsol.domain.rxnfluxarray)[1]
         half = Int(numspcs/2)
         @simd for i in 1:length(bsol.domain.phase.reactions)
             rxn = bsol.domain.phase.reactions[i]
             R = getrate(rxn,cs,kfs,krevs)*V
-            @views for ind in domain.rxnfluxarray[1:half,i]
+            @views for ind in bsol.domain.rxnfluxarray[1:half,i]
                 if ind != 0
                     ropmat[i,ind] += R
-                    if !(ind in domain.solidindexes)
-                        ropmat[i,domain.indexes[3]] += R*domain.Mws[ind]
+                    if !(ind in bsol.domain.solidindexes)
+                        ropmat[i,bsol.domain.indexes[3]] += R*bsol.domain.Mws[ind]
                     end
                 end
             end
-            @views for ind in domain.rxnfluxarray[half+1:end,i]
+            @views for ind in bsol.domain.rxnfluxarray[half+1:end,i]
                 if ind != 0
                     ropmat[i,ind] -= R
-                    if !(ind in domain.solidindexes)
-                        ropmat[i,domain.indexes[3]] -= R*domain.Mws[ind]
+                    if !(ind in bsol.domain.solidindexes)
+                        ropmat[i,domain.indexes[3]] -= R*bsol.domain.Mws[ind]
                     end
                 end
             end
