@@ -189,7 +189,7 @@ function rops(bsol::Q,t::X) where {Q<:Simulation,X<:Real}
                 if ind != 0
                     ropmat[i,ind] -= R
                     if !(ind in bsol.domain.solidindexes)
-                        ropmat[i,domain.indexes[3]] -= R*bsol.domain.Mws[ind]
+                        ropmat[i,bsol.domain.indexes[3]] -= R*bsol.domain.Mws[ind]
                     end
                 end
             end
