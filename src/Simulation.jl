@@ -168,17 +168,43 @@ this outputs a sparse matrix of  num reactions xnum species containing the produ
 rate of that species associated with that reaction
 """
 function rops(bsol::Q,t::X) where {Q<:Simulation,X<:Real}
-    ropmat = spzeros(length(bsol.domain.phase.reactions),length(bsol.domain.phase.species))
     cs,kfs,krevs = calcthermo(bsol.domain,bsol.sol(t),t)[[2,9,10]]
     V = getdomainsize(bsol,t)
-    @simd for i in 1:length(bsol.domain.phase.reactions)
-        rxn = bsol.domain.phase.reactions[i]
-        R = getrate(rxn,cs,kfs,krevs)*V
-        for ind in rxn.productinds
-            ropmat[i,ind] += R
+    if isa(domain,ConstantTrhoDomain)
+        ropmat = spzeros(length(bsol.domain.phase.reactions),length(bsol.domain.phase.species)+1)
+        (numspcs,numrxns) = size(domain.rxnfluxarray)
+        half = Int(numspcs/2)
+        @simd for i in 1:length(bsol.domain.phase.reactions)
+            rxn = bsol.domain.phase.reactions[i]
+            R = getrate(rxn,cs,kfs,krevs)*V
+            @views for ind in domain.rxnfluxarray[1:half,i]
+                if ind != 0
+                    ropmat[i,ind] += R
+                    if !(ind in domain.solidindexes)
+                        ropmat[i,domain.indexes[3]] += R*domain.Mws[ind]
+                    end
+                end
+            end
+            @views for ind in domain.rxnfluxarray[half+1:end,i]
+                if ind != 0
+                    ropmat[i,ind] -= R
+                    if !(ind in domain.solidindexes)
+                        ropmat[i,domain.indexes[3]] -= R*domain.Mws[ind]
+                    end
+                end
+            end
         end
-        for ind in rxn.reactantinds
-            ropmat[i,ind] -= R
+    else
+        ropmat = spzeros(length(bsol.domain.phase.reactions),length(bsol.domain.phase.species))
+        @simd for i in 1:length(bsol.domain.phase.reactions)
+            rxn = bsol.domain.phase.reactions[i]
+            R = getrate(rxn,cs,kfs,krevs)*V
+            for ind in rxn.productinds
+                ropmat[i,ind] += R
+            end
+            for ind in rxn.reactantinds
+                ropmat[i,ind] -= R
+            end
         end
     end
     return ropmat
