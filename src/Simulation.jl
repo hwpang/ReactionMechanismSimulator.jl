@@ -179,7 +179,7 @@ function rops(bsol::Q,t::X) where {Q<:Simulation,X<:Real}
             R = getrate(rxn,cs,kfs,krevs)*V
             @views for ind in bsol.domain.rxnfluxarray[1:half,i]
                 if ind != 0
-                    ropmat[i,ind] += R
+                    ropmat[i,ind] -= R
                     if !(ind in bsol.domain.solidindexes)
                         ropmat[i,bsol.domain.indexes[3]] += R*bsol.domain.Mws[ind]
                     end
@@ -187,7 +187,7 @@ function rops(bsol::Q,t::X) where {Q<:Simulation,X<:Real}
             end
             @views for ind in bsol.domain.rxnfluxarray[half+1:end,i]
                 if ind != 0
-                    ropmat[i,ind] -= R
+                    ropmat[i,ind] += R
                     if !(ind in bsol.domain.solidindexes)
                         ropmat[i,bsol.domain.indexes[3]] -= R*bsol.domain.Mws[ind]
                     end
