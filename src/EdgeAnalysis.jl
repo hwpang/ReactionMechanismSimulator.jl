@@ -208,8 +208,8 @@ function getkeyselectioninds(coreedgedomains,coreedgeinters,domains,inters)
         rxnindexedge += length(coreedgedomains[i].phase.reactions)
 
         indend = length(domains[i].phase.reactions)
-        reactantindices[:,ind:ind+indend-1] = domains[i].rxnarray[1:3,:]
-        productindices[:,ind:ind+indend-1] = domains[i].rxnarray[4:6,:]
+        reactantindices[:,ind:ind+indend-1] = domains[i].rxnarray[1:4,:]
+        productindices[:,ind:ind+indend-1] = domains[i].rxnarray[5:8,:]
         ind += indend
     end
         
@@ -220,8 +220,8 @@ function getkeyselectioninds(coreedgedomains,coreedgeinters,domains,inters)
             index += length(coreedgeinters[i].phase.reactions)
             
             indend = length(inters[i].reactions)
-            reactantindices[:,ind:ind+indend] = inters[i].rxnarray[1:3,:]
-            productindices[:,ind:ind+indend] = inters[i].rxnarray[4:6,:]
+            reactantindices[:,ind:ind+indend] = inters[i].rxnarray[1:4,:]
+            productindices[:,ind:ind+indend] = inters[i].rxnarray[5:8,:]
             ind += indend
         end
     end
@@ -236,8 +236,8 @@ function getkeyselectioninds(coreedgedomain::AbstractDomain,coreedgeinters,domai
     edgespcsinds = length(domain.phase.species)+1:length(coreedgedomain.phase.species)
     corerxninds = 1:length(domain.phase.reactions)
     edgerxninds = length(domain.phase.reactions)+1:length(coreedgedomain.phase.reactions)
-    reactantindices = coreedgedomain.rxnarray[1:3,:]
-    productindices = coreedgedomain.rxnarray[4:6,:]
+    reactantindices = coreedgedomain.rxnarray[1:4,:]
+    productindices = coreedgedomain.rxnarray[5:8,:]
     coretoedgespcmap = Dict([i=>findfirst(isequal(spc),coreedgedomain.phase.species) for (i,spc) in enumerate(domain.phase.species)])
     coretoedgerxnmap = Dict([i=>findfirst(isequal(rxn),coreedgedomain.phase.reactions) for (i,rxn) in enumerate(domain.phase.reactions)])
     for j = 3:length(domain.indexes)
@@ -272,7 +272,7 @@ function processfluxes(sim::SystemSimulation,
             if any(d.rxnarray[:,i].>length(corespeciesconcentrations))
                 continue
             end
-            for j = 1:3
+            for j = 1:4
                 if d.rxnarray[j,i] != 0
                     corespeciesconsumptionrates[d.rxnarray[j,i]] += frts[i+index]
                     corespeciesproductionrates[d.rxnarray[j,i]] += rrts[i+index]
@@ -280,7 +280,7 @@ function processfluxes(sim::SystemSimulation,
                     break
                 end
             end
-            for j = 4:6
+            for j = 5:8
                 if d.rxnarray[j,i] != 0
                     corespeciesproductionrates[d.rxnarray[j,i]] += frts[i+index]
                     corespeciesconsumptionrates[d.rxnarray[j,i]] += rrts[i+index]
@@ -297,7 +297,7 @@ function processfluxes(sim::SystemSimulation,
                 if any(d.rxnarray[:,i].>length(corespeciesconcentrations))
                     continue
                 end
-                for j = 1:3
+                for j = 1:4
                     if d.rxnarray[j,i] != 0
                         corespeciesconsumptionrates[d.rxnarray[j,i]] += frts[i+index]
                         corespeciesproductionrates[d.rxnarray[j,i]] += rrts[i+index]
@@ -305,7 +305,7 @@ function processfluxes(sim::SystemSimulation,
                         break
                     end
                 end
-                for j = 4:6
+                for j = 5:8
                     if d.rxnarray[j,i] != 0
                         corespeciesproductionrates[d.rxnarray[j,i]] += frts[i+index]
                         corespeciesconsumptionrates[d.rxnarray[j,i]] += rrts[i+index]
@@ -345,7 +345,7 @@ function processfluxes(sim::Simulation,corespcsinds,corerxninds,edgespcsinds,edg
         if any(d.rxnarray[:,i].>length(corespeciesconcentrations))
             continue
         end
-        for j = 1:3
+        for j = 1:4
             if d.rxnarray[j,i] != 0
                 corespeciesconsumptionrates[d.rxnarray[j,i]] += frts[i]
                 corespeciesproductionrates[d.rxnarray[j,i]] += rrts[i]
@@ -353,7 +353,7 @@ function processfluxes(sim::Simulation,corespcsinds,corerxninds,edgespcsinds,edg
                 break
             end
         end
-        for j = 4:6
+        for j = 5:8
             if d.rxnarray[j,i] != 0
                 corespeciesproductionrates[d.rxnarray[j,i]] += frts[i]
                 corespeciesconsumptionrates[d.rxnarray[j,i]] += rrts[i]
