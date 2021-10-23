@@ -57,4 +57,5 @@ module ReactionMechanismSimulator
     include("EdgeAnalysis.jl")
     include("fluxdiagrams.jl")
     include("Plotting.jl")
+    include("ModelReduction.jl")
 end
