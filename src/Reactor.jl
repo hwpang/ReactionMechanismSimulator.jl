@@ -431,6 +431,46 @@ end
     end
     return dydt
 end
+@inline function dydtreactor!(dydt::RC,y::U,t::Z,domain::Q,interfaces::B,qssindexes::Array{Int64,1},lumpedindexes::Array{Int64,1},reducedindexes::Array{Int64,1},lumpedgroupmapping::Array{Dict{Int64,Float64},1},yunlumped::Array{Float64,1},dydtunlumped::Array{Float64,1},qssc::Array{Float64,1},qssc!;p::RV=DiffEqBase.NullParameters(),sensitivity::Bool=true) where {RC,RV,B,Z,U,Q<:AbstractDomain}
+
+    dydt .= 0.0
+    yunlumped .= 0.0
+    dydtunlumped .= 0.0
+    qssc .= 0.0
+
+   #unlump y to Z space
+    @inbounds @views yunlumped[reducedindexes] .= y[1:end-length(domain.thermovariabledict)-length(lumpedgroupmapping)]
+    for (i,group) in enumerate(lumpedgroupmapping)
+        for (index,weight) in group
+            @inbounds yunlumped[index] = weight * y[length(reducedindexes)+i]
+        end
+    end
+    @inbounds @views yunlumped[end-length(domain.thermovariabledict)+1:end] .= y[end-length(domain.thermovariabledict)+1:end]
+
+    ns,cs,T,P,V,C,N,mu,kfs,krevs,Hs,Us,Gs,diffs,Cvave,cpdivR,phi = calcthermo(domain,yunlumped,t,p)
+
+    #calculate qss species concentration
+    qssc!(qssc,cs,kfs,krevs)
+    @inbounds yunlumped[qssindexes] .= qssc .* V
+
+    #calculate dydt in Z space
+    ns,cs,T,P,V,C,N,mu,kfs,krevs,Hs,Us,Gs,diffs,Cvave,cpdivR,phi = calcthermo(domain,yunlumped,t,p)
+
+    addreactionratecontributions!(dydtunlumped,domain.rxnarray,cs,kfs,krevs)
+    @fastmath dydtunlumped .*= V
+
+    calcdomainderivatives!(domain,dydtunlumped,interfaces;t=t,T=T,P=P,Us=Us,Hs=Hs,V=V,C=C,ns=ns,N=N,Cvave=Cvave)
+
+    #lump dydt back to Y space
+    @inbounds @views dydt[1:end-length(domain.thermovariabledict)-length(lumpedgroupmapping)] .= dydtunlumped[reducedindexes]
+    for (i,group) in enumerate(lumpedgroupmapping)
+        for (index,weight) in group
+            @fastmath @inbounds dydt[length(reducedindexes)+i] += dydtunlumped[index]
+        end
+    end
+    @inbounds @views dydt[end-length(domain.thermovariabledict)+1:end] .= dydtunlumped[end-length(domain.thermovariabledict)+1:end]
+    return dydt
+end
 export dydtreactor!
 
 function jacobianyforwarddiff!(J::Q,y::U,p::W,t::Z,domain::V,interfaces::Q3,colorvec::Q2=nothing) where {Q3,Q2,Q<:AbstractArray,U<:AbstractArray,W,Z<:Real,V<:AbstractDomain}
