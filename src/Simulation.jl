@@ -37,11 +37,10 @@ end
 function Simulation(sol::Q,domain::W,qssindexes::Array{Int64,1},lumpedindexes::Array{Int64,1},reducedindexes::Array{Int64,1},lumpedgroupmapping::Array{Dict{Int64,Float64},1},qssc!,interfaces=[],p=nothing) where {Q<:AbstractODESolution,W<:AbstractDomain}
     names = getfield.(domain.phase.species,:name)
 
-    yunlumped = zeros(length(sol(0))+length(qssindexes)-length(lumpedgroupmapping)+length(lumpedindexes))
     qssc = zeros(length(qssindexes))
 
-    function unlumpsol(t::Real,sol::Q,domain::W,qssindexes::Array{Int64,1},lumpedindexes::Array{Int64,1},reducedindexes::Array{Int64,1},lumpedgroupmapping::Array{Dict{Int64,Float64},1},yunlumped::Array{Float64,1},qssc::Array{Float64,1},qssc!,interfaces=[],p=nothing) where {Q<:AbstractODESolution,W<:AbstractDomain}
-        yunlumped .= 0.0
+    function unlumpsol(t::Real,sol::Q,domain::W,qssindexes::Array{Int64,1},lumpedindexes::Array{Int64,1},reducedindexes::Array{Int64,1},lumpedgroupmapping::Array{Dict{Int64,Float64},1},qssc::Array{Float64,1},qssc!,interfaces=[],p=nothing) where {Q<:AbstractODESolution,W<:AbstractDomain}
+        yunlumped = zeros(length(sol(0))+length(qssindexes)-length(lumpedgroupmapping)+length(lumpedindexes))
         qssc .= 0.0
 
         y = sol(t)
@@ -61,7 +60,7 @@ function Simulation(sol::Q,domain::W,qssindexes::Array{Int64,1},lumpedindexes::A
         return yunlumped
     end
 
-    unlumpedsol(t::T) where {T<:Real} = unlumpsol(t,sol,domain,qssindexes,lumpedindexes,reducedindexes,lumpedgroupmapping,yunlumped,qssc,qssc!,interfaces,p)
+    unlumpedsol(t::T) where {T<:Real} = unlumpsol(t,sol,domain,qssindexes,lumpedindexes,reducedindexes,lumpedgroupmapping,qssc,qssc!,interfaces,p)
 
     Ns = [sum(unlumpedsol(t)[domain.indexes[1]:domain.indexes[2]]) for t in sol.interp.t]
     F(t::T) where {T<:Real} = sum(unlumpedsol(t)[domain.indexes[1]:domain.indexes[2]])
