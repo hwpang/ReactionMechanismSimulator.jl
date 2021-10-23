@@ -161,6 +161,46 @@ function Reactor(domains::T,y0s::W,tspan::W2,interfaces::Z=Tuple(),ps::X=DiffEqB
     end
     return Reactor(domains,ode,recsolver,forwardsensitivities),y0,p
 end
+function Reactor(domain::T,y0unlumped::Array{W,1},tspan::Tuple,qssindexes::Array{Int64,1},lumpedindexes::Array{Int64,1},reducedindexes::Array{Int64,1},lumpedgroupmapping::Array{Dict{Int64,Float64},1},qssc!::F,interfaces::Z=[];p::X=DiffEqBase.NullParameters(),forwardsensitivities=false,forwarddiff=false,modelingtoolkit=false) where {T<:AbstractDomain,W<:Real,Z<:AbstractArray,X,F<:Function}
+    dydt(dy::X,y::T,p::V,t::Q) where {X,T,Q,V} = dydtreactor!(dy,y,t,domain,interfaces,qssindexes,lumpedindexes,reducedindexes,lumpedgroupmapping,yunlumped,dydtunlumped,qssc,qssc!,p=p)
+
+    #y0 in Y space
+    y0 = zeros(length(reducedindexes)+length(lumpedgroupmapping)+length(domain.thermovariabledict))
+    @inbounds @views y0[1:end-length(domain.thermovariabledict)-length(lumpedgroupmapping)] .= y0unlumped[reducedindexes]
+    for (i,group) in enumerate(lumpedgroupmapping)
+        for (index,weight) in group
+            @fastmath @inbounds y0[length(reducedindexes)+i] += y0unlumped[index]
+        end
+    end
+    @inbounds @views y0[end-length(domain.thermovariabledict)+1:end] .= y0unlumped[end-length(domain.thermovariabledict)+1:end]
+
+    #initialize helper vectors
+    yunlumped = zeros(length(y0)+length(qssindexes)-length(lumpedgroupmapping)+length(lumpedindexes))
+    dydtunlumped = zeros(length(yunlumped))
+    qssc = zeros(length(qssindexes))
+
+    odefcn = ODEFunction(dydt)
+
+    if forwardsensitivities
+        ode = ODEForwardSensitivityProblem(odefcn,y0,tspan,p)
+        recsolver = Sundials.CVODE_BDF(linear_solver=:GMRES)
+    else
+        ode = ODEProblem(odefcn,y0,tspan,p)
+        recsolver  = Sundials.CVODE_BDF()
+    end
+    if modelingtoolkit
+        sys = modelingtoolkitize(ode)
+        jac = eval(ModelingToolkit.generate_jacobian(sys)[2])
+        odefcn = ODEFunction(dydt;jac=jac)
+        if forwardsensitivities
+            ode = ODEForwardSensitivityProblem(odefcn,y0,tspan,p)
+        else
+            ode = ODEProblem(odefcn,y0,tspan,p)
+        end
+    end
+
+    return Reactor(domain,ode,recsolver,forwardsensitivities)
+end
 export Reactor
 
 @inline function getrate(rxn::T,cs::Array{W,1},kfs::Array{Q,1},krevs::Array{Q,1}) where {T<:AbstractReaction,Q,W<:Real}
