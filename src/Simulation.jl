@@ -6,7 +6,7 @@ using ForwardDiff
 abstract type AbstractSimulation end
 export AbstractSimulation
 
-struct Simulation{Q<:AbstractODESolution,W<:AbstractDomain,M,L<:AbstractArray,G<:Function,G2<:AbstractArray,G3,G4,G5} <: AbstractSimulation
+struct Simulation{Q,W<:AbstractDomain,M,L<:AbstractArray,G<:Function,G2<:AbstractArray,G3,G4,G5} <: AbstractSimulation
     sol::Q
     domain::W
     interfaces::M
