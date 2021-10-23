@@ -31,6 +31,41 @@ function Simulation(sol::Q,domain::W,interfaces=[],p=nothing) where {Q<:Abstract
     return Simulation(sol,domain,interfaces,names,F,Ns,domain.phase.species,domain.phase.reactions,p)
 end
 
+function Simulation(sol::Q,domain::W,qssindexes::Array{Int64,1},lumpedindexes::Array{Int64,1},reducedindexes::Array{Int64,1},lumpedgroupmapping::Array{Dict{Int64,Float64},1},qssc!,interfaces=[],p=nothing) where {Q<:AbstractODESolution,W<:AbstractDomain}
+    names = getfield.(domain.phase.species,:name)
+
+    yunlumped = zeros(length(sol(0))+length(qssindexes)-length(lumpedgroupmapping)+length(lumpedindexes))
+    qssc = zeros(length(qssindexes))
+
+    function unlumpsol(t::Real,sol::Q,domain::W,qssindexes::Array{Int64,1},lumpedindexes::Array{Int64,1},reducedindexes::Array{Int64,1},lumpedgroupmapping::Array{Dict{Int64,Float64},1},yunlumped::Array{Float64,1},qssc::Array{Float64,1},qssc!,interfaces=[],p=nothing) where {Q<:AbstractODESolution,W<:AbstractDomain}
+        yunlumped .= 0.0
+        qssc .= 0.0
+
+        y = sol(t)
+
+        @inbounds @views yunlumped[reducedindexes] .= y[1:end-length(domain.thermovariabledict)-length(lumpedgroupmapping)]
+        for (i,group) in enumerate(lumpedgroupmapping)
+            for (index,weight) in group
+                @inbounds yunlumped[index] = weight * y[length(reducedindexes)+i]
+            end
+        end
+        @inbounds @views yunlumped[end-length(domain.thermovariabledict)+1:end] .= y[end-length(domain.thermovariabledict)+1:end]
+
+        ns,cs,T,P,V,C,N,mu,kfs,krevs,Hs,Us,Gs,diffs,Cvave,cpdivR,phi = calcthermo(domain,yunlumped,t,p)
+
+        qssc!(qssc,cs,kfs,krevs)
+        @inbounds yunlumped[qssindexes] .= qssc .* V
+        return yunlumped
+    end
+
+    unlumpedsol(t::T) where {T<:Real} = unlumpsol(t,sol,domain,qssindexes,lumpedindexes,reducedindexes,lumpedgroupmapping,yunlumped,qssc,qssc!,interfaces,p)
+
+    Ns = [sum(unlumpedsol(t)[domain.indexes[1]:domain.indexes[2]]) for t in sol.interp.t]
+    F(t::T) where {T<:Real} = sum(unlumpedsol(t)[domain.indexes[1]:domain.indexes[2]])
+
+    return Simulation(unlumpedsol,domain,interfaces,names,F,Ns,domain.phase.species,domain.phase.reactions,p)
+end
+
 export Simulation
 
 struct SystemSimulation{Q,B<:AbstractODESolution,X,Y,Z}
