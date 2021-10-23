@@ -61,4 +61,5 @@ module ReactionMechanismSimulator
     include("Debugging.jl")
     include("Plotting.jl")
     include("fluxdiagrams.jl")
+    include("ModelReduction.jl")
 end
