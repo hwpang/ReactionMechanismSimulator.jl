@@ -236,7 +236,7 @@ struct Inlet{Q<:Real,S,V<:AbstractArray,U<:Real,X<:Real,FF<:Function} <: Abstrac
     H::Q
 end
 
-function Inlet(domain::V,conddict::Dict{String,X},F::FF) where {V,X<:Real,B<:Real,FF<:Function}
+function Inlet(domain::V,conddict::Dict{String,X},F::FF) where {V,X,B<:Real,FF<:Function}
     T = 0.0
     P = 0.0
 
