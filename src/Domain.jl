@@ -1787,11 +1787,7 @@ end
     # tldr:
     # d/dV (dni/dt) = dflow_i/dV
 
-<<<<<<< HEAD
     ############################ General derivation for outlet type interface for ConstantTPDomain #################
-=======
-    ############################ General derivation for ConstantTPDomain outlet type interface #################
->>>>>>> Add comments and debug for ConstantTPDomain interface jacobiany
     # To get d/dni (dV/dt) ConstantPDomain:
         # V = N*R*T/P
         # dV/dt = dNdt*R*T/P = flow*R*T/P
