@@ -127,6 +127,51 @@ function evaluate(di::DiffusiveInternalInterface,dydt,V1,V2,T1,T2,cstot,p)
 end
 export evaluate
 
+struct VaporLiquidMassTransferInternalInterface{T,B,N} <: AbstractInternalInterface
+    domain1::T
+    domain2::N
+    masstransferspcnames::Array{String,1}
+    masstransferarray::B
+    parameterindexes::Array{Int64,1}
+    domaininds::Array{Int64,1}
+    p::Array{Float64,1}
+end
+
+function VaporLiquidMassTransferInternalInterface(domain1,domain2,domains,masstransferspcnames)
+    @assert isa(domain1.phase,IdealGas)
+    @assert isa(domain2.phase,IdealDiluteSolution)
+
+    domaininds = Array{Int64,1}([0,0])
+    masstransferarray = getinterfacemasstransferinds(domain1,domain2,masstransferspcnames)
+    for (i,domain) in enumerate(domains)
+        if domain==domain1
+            domaininds[1]=i
+        elseif domain==domain2
+            domaininds[2]=i
+        end
+    end
+    return VaporLiquidMassTransferInternalInterface(domain1,domain2,masstransferspcnames,masstransferarray,[1,length(masstransferspcnames)],domaininds,ones(length(masstransferspcnames))),ones(length(masstransferspcnames))
+end
+export VaporLiquidMassTransferInternalInterface
+
+function getkLAkHs(vl::VaporLiquidMassTransferInternalInterface,T1,T2)
+    phase = vl.domain2.phase
+    T = T2
+    kLAs = [T -> kLA(T=T) for kLA in getfield.(phase.species,:liquidvolumetricmasstransfercoefficient)]
+    kHs = [T -> kH(T=T) for kH in getfield.(phase.species,:henrylawconstant)]
+    return kLAs, kHs
+end
+
+function evaluate(vl::VaporLiquidMassTransferInternalInterface,dydt,V1,V2,T1,T2,cstot,p::W) where {W<:DiffEqBase.NullParameters}
+    kLAs, kHs = getkLAkHs(vl,T1,T2)
+    addreactionratecontributions!(dydt,vl.masstransferarray,cstot,-kLAs,kLAs./kHs,V2)
+end
+
+function evaluate(vl::VaporLiquidMassTransferInternalInterface,dydt,V1,V2,T1,T2,cstot,p)
+    kLAs, kHs = getkLAkHs(vl,T1,T2)
+    addreactionratecontributions!(dydt,vl.masstransferarray,cstot,-kLAs,kLAs./kHs,V2)
+end
+export evaluate
 
 struct ReactiveInternalInterfaceConstantTPhi{J,N,B,B2,B3,C,C2,Q<:AbstractReaction} <: AbstractReactiveInternalInterface
     domain1::J
