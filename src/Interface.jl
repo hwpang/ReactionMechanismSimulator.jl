@@ -301,6 +301,20 @@ function getinterfacediffusioninds(domain1,domain2,diffusivespcnames)
     return indices
 end
 
+function getinterfacemasstransferinds(domain1,domain2,masstransferspcnames)
+    indices = zeros(Int64,(6,length(masstransferspcnames)))
+    N1 = length(domain1.phase.species)
+    spcnames1 = getfield.(domain1.phase.species,:name)
+    spcnames2 = getfield.(domain2.phase.species,:name) 
+    for (i,name) in enumerate(masstransferspcnames)
+        ind1 = findfirst(isequal(name),spcnames1)
+        ind2 = findfirst(isequal(name),spcnames2)
+        indices[1,i] = ind1
+        indices[4,i] = ind2+N1
+    end
+    return indices
+end
+
 function upgradekinetics(rxns,domain1,domain2)
     domain1surf = hasproperty(domain1.phase,:sitedensity)
     domain2surf = hasproperty(domain2.phase,:sitedensity)
