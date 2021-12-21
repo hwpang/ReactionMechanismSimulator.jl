@@ -137,20 +137,11 @@ struct VaporLiquidMassTransferInternalInterface{T,B,N} <: AbstractInternalInterf
     p::Array{Float64,1}
 end
 
-function VaporLiquidMassTransferInternalInterface(domain1,domain2,domains,masstransferspcnames)
+function VaporLiquidMassTransferInternalInterface(domain1,domain2,masstransferspcnames)
     @assert isa(domain1.phase,IdealGas)
     @assert isa(domain2.phase,IdealDiluteSolution)
-
-    domaininds = Array{Int64,1}([0,0])
     masstransferarray = getinterfacemasstransferinds(domain1,domain2,masstransferspcnames)
-    for (i,domain) in enumerate(domains)
-        if domain==domain1
-            domaininds[1]=i
-        elseif domain==domain2
-            domaininds[2]=i
-        end
-    end
-    return VaporLiquidMassTransferInternalInterface(domain1,domain2,masstransferspcnames,masstransferarray,[1,length(masstransferspcnames)],domaininds,ones(length(masstransferspcnames))),ones(length(masstransferspcnames))
+    return VaporLiquidMassTransferInternalInterface(domain1,domain2,masstransferspcnames,masstransferarray,[1,length(masstransferspcnames)],[0,1],ones(length(masstransferspcnames))),ones(length(masstransferspcnames))
 end
 export VaporLiquidMassTransferInternalInterface
 
