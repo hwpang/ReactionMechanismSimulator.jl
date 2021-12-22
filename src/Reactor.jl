@@ -147,7 +147,7 @@ function Reactor(domains::T,y0s::W,tspan::W2,interfaces::Z=Tuple(),ps::X=DiffEqB
             inter.domaininds[2] = ind2
             inter.parameterindexes[1] = length(p)+1
             inter.parameterindexes[2] = length(p)+length(ps[i+length(domains)])
-            inter.rxnarray .= getinterfacemasstransferinds(inter.domain1,inter.domain2,inter.masstransferspcnames)
+            inter.masstransferarray .= getinterfacemasstransferinds(inter.domain1,inter.domain2,inter.masstransferspcnames)
             p = vcat(p,ps[i+length(domains)])
         end
     end
