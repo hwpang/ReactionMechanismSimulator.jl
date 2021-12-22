@@ -148,8 +148,8 @@ export VaporLiquidMassTransferInternalInterface
 function getkLAkHs(vl::VaporLiquidMassTransferInternalInterface,T1,T2)
     phase = vl.domain2.phase
     T = T2
-    kLAs = [T -> kLA(T=T) for kLA in getfield.(phase.species,:liquidvolumetricmasstransfercoefficient)]
-    kHs = [T -> kH(T=T) for kH in getfield.(phase.species,:henrylawconstant)]
+    kLAs = [kLA(T=T) for kLA in getfield.(phase.species,:liquidvolumetricmasstransfercoefficient)]
+    kHs = [kH(T=T) for kH in getfield.(phase.species,:henrylawconstant)]
     return kLAs, kHs
 end
 
