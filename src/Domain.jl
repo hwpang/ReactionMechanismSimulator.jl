@@ -2106,7 +2106,7 @@ end
             @simd for i in domain.indexes[1]:domain.indexes[2]
                 @inbounds @fastmath jac[i,i] -= flow*R*T/P/V*ns[i]
             end
-            @views @inbounds dydt[domain.indexes[1]:domain.indexes[2],domain.indexes[3]] .-= -flow*R*T/P/(V*V)*ns
+            @views @inbounds jac[domain.indexes[1]:domain.indexes[2],domain.indexes[3]] .-= -flow*R*T/P/(V*V)*ns
 
             # condensation
             # outlet
