@@ -434,11 +434,6 @@ struct TPDependentOutlet{V,FF<:Real,PP<:Real,TT<:Real} <: AbstractBoundaryInterf
 end
 export TPDependentOutlet
 
-struct ConstantVaporVolumeOutlet{V} <: AbstractBoundaryInterface
-    domain::V
-end
-export ConstantVaporVolumeOutlet
-
 """
 kLAkHCondensationEvaporationWithReservoir adds evaporation and condensation to
 (1) a liquid phase domain with a constant composition vapor resevoir, where molefractions, P, and T need to be specified, or
