@@ -390,12 +390,13 @@ struct Outlet{V,FF<:Function} <: AbstractBoundaryInterface
 end
 export Outlet
 
-struct PressureDependentOutlet{V,FF<:Float64,PP<:Float64} <: AbstractBoundaryInterface
+struct TPDependentOutlet{V,FF<:Real,PP<:Real,TT<:Real} <: AbstractBoundaryInterface
     domain::V
     F::FF
     P::PP
+    T::TT
 end
-export PressureDependentOutlet
+export TPDependentOutlet
 
 struct ConstantVaporVolumeOutlet{V} <: AbstractBoundaryInterface
     domain::V
