@@ -144,7 +144,7 @@ function VaporLiquidMassTransferInternalInterfaceConstantT(domain1,domain2,masst
     @assert isa(domain2.phase,IdealDiluteSolution)
     T = domain2.T
     phase = domain2.phase
-    masstransferarray = getinterfacemasstransferinds(domain1,domain2,masstransferspcnames)
+    masstransferarray = zeros(Int64,(6,length(masstransferspcnames)))
     kLAs = [kLA(T=T) for kLA in getfield.(phase.species,:liquidvolumetricmasstransfercoefficient)]
     kHs = [kH(T=T) for kH in getfield.(phase.species,:henrylawconstant)]
     return VaporLiquidMassTransferInternalInterfaceConstantT(domain1,domain2,masstransferspcnames,masstransferarray,kLAs,kHs,[1,length(masstransferspcnames)],[0,0],ones(length(masstransferspcnames))),ones(length(masstransferspcnames))
@@ -305,14 +305,13 @@ end
 
 function getinterfacemasstransferinds(domain1,domain2,masstransferspcnames)
     indices = zeros(Int64,(6,length(masstransferspcnames)))
-    N1 = length(domain1.phase.species)
     spcnames1 = getfield.(domain1.phase.species,:name)
     spcnames2 = getfield.(domain2.phase.species,:name) 
     for (i,name) in enumerate(masstransferspcnames)
         ind1 = findfirst(isequal(name),spcnames1)
         ind2 = findfirst(isequal(name),spcnames2)
-        indices[1,i] = ind1
-        indices[4,i] = ind2+N1
+        indices[1,i] = domain1.indexes[1]-1+ind1
+        indices[4,i] = domain2.indexes[1]-1+ind2
     end
     return indices
 end
