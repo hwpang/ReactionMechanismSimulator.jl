@@ -157,7 +157,7 @@ function getkLAkHs(vl::VaporLiquidMassTransferInternalInterfaceConstantT,T1,T2)
     return vl.kLAs, vl.kHs
 end
 
-function evaluate(vl::VaporLiquidMassTransferInternalInterfaceConstantT,dydt,V1,V2,T1,T2,N1,N2,P1,P2,Cvave1,Cvave2,ns1,ns2,cstot,p::W) where {W<:DiffEqBase.NullParameters}
+function evaluate(vl::VaporLiquidMassTransferInternalInterfaceConstantT,dydt,V1,V2,T1,T2,N1,N2,P1,P2,Cvave1,Cvave2,ns1,ns2,Us1,Us2,stot,p::W) where {W<:DiffEqBase.NullParameters}
     kLAs, kHs = getkLAkHs(vl,T1,T2)
     @views @inbounds @fastmath evap = kLAs.*cstot[vl.masstransferarray[1,:]]*V2
     @views @inbounds @fastmath cond = kLAs./kHs.*cstot[vl.masstransferarray[4,:]]*V1
@@ -170,6 +170,7 @@ function evaluate(vl::VaporLiquidMassTransferInternalInterfaceConstantT,dydt,V1,
         P = P1
         T = T1
         ns = ns1
+        Us = Us1
         Cvave = Cvave1
         flow = sum(evap)
         molefractions = evap./flow
@@ -184,7 +185,7 @@ function evaluate(vl::VaporLiquidMassTransferInternalInterfaceConstantT,dydt,V1,
     end
 end
 
-function evaluate(vl::VaporLiquidMassTransferInternalInterfaceConstantT,dydt,V1,V2,T1,T2,N1,N2,P1,P2,Cvave1,Cvave2,ns1,ns2,cstot,p)
+function evaluate(vl::VaporLiquidMassTransferInternalInterfaceConstantT,dydt,V1,V2,T1,T2,N1,N2,P1,P2,Cvave1,Cvave2,ns1,ns2,Us1,Us2,cstot,p)
     kLAs, kHs = getkLAkHs(vl,T1,T2)
     @views @inbounds @fastmath evap = kLAs.*cstot[vl.masstransferarray[1,:]]*V2
     @views @inbounds @fastmath cond = kLAs./kHs.*cstot[vl.masstransferarray[4,:]]*V1
@@ -197,10 +198,11 @@ function evaluate(vl::VaporLiquidMassTransferInternalInterfaceConstantT,dydt,V1,
         P = P1
         T = T1
         ns = ns1
+        Us = Us1
         Cvave = Cvave1
         flow = sum(evap)
         molefractions = evap./flow
-        dTdt = flow*(dot(vl.Hs,molefractions) - dot(Us,ns)/N)/(N*Cvave)
+        dTdt = flow*(dot(inter.Hs,molefractions) - dot(Us,ns)/N)/(N*Cvave)
         dydt[vl.domain1.indexes[3]] += dTdt
         dydt[vl.domain1.indexes[4]] += flow*R*T/V + P/T*dTdt
 
@@ -425,14 +427,6 @@ struct Outlet{V,FF<:Function} <: AbstractBoundaryInterface
     F::FF
 end
 export Outlet
-
-struct TPDependentOutlet{V,FF<:Real,PP<:Real,TT<:Real} <: AbstractBoundaryInterface
-    domain::V
-    F::FF
-    P::PP
-    T::TT
-end
-export TPDependentOutlet
 
 """
 kLAkHCondensationEvaporationWithReservoir adds evaporation and condensation to
