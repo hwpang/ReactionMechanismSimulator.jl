@@ -500,7 +500,7 @@ end
         elseif isa(inter,DiffusiveInternalInterface)
             evaluate(inter,dydt,vV[inter.domaininds[1]],vV[inter.domaininds[2]],vT[inter.domaininds[1]],vT[inter.domaininds[2]],cstot,p)
         elseif isa(inter,VaporLiquidMassTransferInternalInterfaceConstantT)
-            evaluate(inter,dydt,vV[inter.domaininds[1]],vV[inter.domaininds[2]],vT[inter.domaininds[1]],vT[inter.domaininds[2]],vP[inter.domaininds[1]],vP[inter.domaininds[2]],cstot,p)
+            evaluate(inter,dydt,vV[inter.domaininds[1]],vV[inter.domaininds[2]],vT[inter.domaininds[1]],vT[inter.domaininds[2]],cstot,p)
         end
     end
     for (i,domain) in enumerate(domains)
