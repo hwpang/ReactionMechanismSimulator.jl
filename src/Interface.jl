@@ -143,6 +143,7 @@ function VaporLiquidMassTransferInternalInterfaceConstantT(domain1,domain2,masst
     @assert isa(domain1.phase,IdealGas)
     @assert isa(domain2.phase,IdealDiluteSolution)
     T = domain2.T
+    phase = domain2.phase
     masstransferarray = getinterfacemasstransferinds(domain1,domain2,masstransferspcnames)
     kLAs = [kLA(T=T) for kLA in getfield.(phase.species,:liquidvolumetricmasstransfercoefficient)]
     kHs = [kH(T=T) for kH in getfield.(phase.species,:henrylawconstant)]
