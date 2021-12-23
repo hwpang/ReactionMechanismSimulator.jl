@@ -386,6 +386,11 @@ struct Outlet{V,FF<:Function} <: AbstractBoundaryInterface
 end
 export Outlet
 
+struct ConstantVaporVolumeOutlet{V} <: AbstractBoundaryInterface
+    domain::V
+end
+export ConstantVaporVolumeOutlet
+
 """
 kLAkHCondensationEvaporationWithReservoir adds evaporation and condensation to
 (1) a liquid phase domain with a constant composition vapor resevoir, where molefractions, P, and T need to be specified, or
