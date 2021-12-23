@@ -499,12 +499,15 @@ end
             evaluate(inter,dydt,domains,vT[inter.domaininds[1]],vT[inter.domaininds[2]],vphi[inter.domaininds[1]],vphi[inter.domaininds[2]],vGs[inter.domaininds[1]],vGs[inter.domaininds[2]],cstot,p)
         elseif isa(inter,DiffusiveInternalInterface)
             evaluate(inter,dydt,vV[inter.domaininds[1]],vV[inter.domaininds[2]],vT[inter.domaininds[1]],vT[inter.domaininds[2]],cstot,p)
-        elseif isa(inter,VaporLiquidMassTransferInternalInterfaceConstantT)
-            evaluate(inter,dydt,vV[inter.domaininds[1]],vV[inter.domaininds[2]],vT[inter.domaininds[1]],vT[inter.domaininds[2]],cstot,p)
         end
     end
     for (i,domain) in enumerate(domains)
         calcdomainderivatives!(domain,dydt,interfaces;t=t,T=vT[i],P=vP[i],Us=vUs[i],Hs=vHs[i],V=vV[i],C=vC[i],ns=vns[i],N=vN[i],Cvave=vCvave[i])
+    end
+    for (i,inter) in enumerate(interfaces)
+        if isa(inter,VaporLiquidMassTransferInternalInterfaceConstantT)
+            evaluate(inter,dydt,vV[inter.domaininds[1]],vV[inter.domaininds[2]],vT[inter.domaininds[1]],vT[inter.domaininds[2]],vP[inter.domaininds[1]],vP[inter.domaininds[2]],cstot,p)
+        end
     end
     return dydt
 end

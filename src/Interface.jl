@@ -155,20 +155,24 @@ function getkLAkHs(vl::VaporLiquidMassTransferInternalInterfaceConstantT,T1,T2)
     return vl.kLAs, vl.kHs
 end
 
-function evaluate(vl::VaporLiquidMassTransferInternalInterfaceConstantT,dydt,V1,V2,T1,T2,cstot,p::W) where {W<:DiffEqBase.NullParameters}
+function evaluate(vl::VaporLiquidMassTransferInternalInterfaceConstantT,dydt,V1,V2,T1,T2,P1,P2,cstot,p::W) where {W<:DiffEqBase.NullParameters}
     kLAs, kHs = getkLAkHs(vl,T1,T2)
     @views @inbounds @fastmath evap = kLAs.*cstot[vl.masstransferarray[1,:]]*V2
     @views @inbounds @fastmath cond = kLAs./kHs.*cstot[vl.masstransferarray[4,:]]*V1
     @views @inbounds @fastmath dydt[vl.masstransferarray[1,:]] .-= (evap .- cond)
     @views @inbounds @fastmath dydt[vl.masstransferarray[4,:]] .+= (evap .- cond)
+    Vout = sum(evap .- cond)*R*T1/P1
+    @views @inbounds dydt[vl.domain1.indexes[1]:vl.domain1.indexes[2]] .-= Vout*cstot[vl.domain1.indexes[1]:vl.domain2.indexes[2]]
 end
 
-function evaluate(vl::VaporLiquidMassTransferInternalInterfaceConstantT,dydt,V1,V2,T1,T2,cstot,p)
+function evaluate(vl::VaporLiquidMassTransferInternalInterfaceConstantT,dydt,V1,V2,T1,T2,P1,P2,cstot,p)
     kLAs, kHs = getkLAkHs(vl,T1,T2)
     @views @inbounds @fastmath evap = kLAs.*cstot[vl.masstransferarray[1,:]]*V2
     @views @inbounds @fastmath cond = kLAs./kHs.*cstot[vl.masstransferarray[4,:]]*V1
     @views @inbounds @fastmath dydt[vl.masstransferarray[1,:]] .-= (evap .- cond)
     @views @inbounds @fastmath dydt[vl.masstransferarray[4,:]] .+= (evap .- cond)
+    Vout = sum(evap .- cond)*R*T1/P1
+    @views @inbounds dydt[vl.domain1.indexes[1]:vl.domain1.indexes[2]] .-= Vout*cstot[vl.domain1.indexes[1]:vl.domain2.indexes[2]]
 end
 export evaluate
 
