@@ -304,6 +304,9 @@ function getinterfacediffusioninds(domain1,domain2,diffusivespcnames)
 end
 
 function getinterfacemasstransferinds(domain1,domain2,masstransferspcnames)
+    if isa(domain2.phase,IdealGas) && isa(domain1.phase,IdealDiluteSolution)
+        domain1, domain2 = domain2, domain1
+    end
     indices = zeros(Int64,(6,length(masstransferspcnames)))
     spcnames1 = getfield.(domain1.phase.species,:name)
     spcnames2 = getfield.(domain2.phase.species,:name) 
