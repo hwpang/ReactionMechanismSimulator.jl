@@ -2105,7 +2105,7 @@ end
                 @inbounds @fastmath jac[i,i] -= kLAs[i]/kHs[i]
             end
             @views @inbounds @fastmath jac[domain.indexes[1]:domain.indexes[2],domain.indexes[3]] .-= kLAs./kHs*R*T/P
-        elseif isa(inter,VolumetricFlowRateOutlet) && d == inter.domain
+        elseif isa(inter,VolumetricFlowRateOutlet) && domain == inter.domain
             # outlet
             # d/dni(dV/dt) = dflow/dni*R*T/P = inter.Vout(t)/V*R*T/P = inter.Vout(t)/N
             # d/dV(dV/dt) = dflow/dV *R*T/P = -inter.Vout(t)*sum(ns)/V^2 *R*T/P = -inter.Vout(t)/V*sum(ns)/N
@@ -2287,7 +2287,7 @@ end
                 @inbounds jac[domain.indexes[3],i] -= ddnidTdt
                 @inbounds @fastmath jac[domain.indexes[4],i] -= kLAs[i]/kHs[i]*R*T/V + P/T*ddnidTdt
             end
-        elseif isa(inter,VolumetricFlowRateOutlet) && d == inter.domain
+        elseif isa(inter,VolumetricFlowRateOutlet) && domain == inter.domain
             # outlet
             # flow = inter.Vout(t)*sum(ns)/V
             # dflowdni = inter.Vout(t)/V
@@ -2516,7 +2516,7 @@ end
                 @inbounds @fastmath jac[i,i] -= kLAs[i]/kHs[i]
             end
             @views @inbounds @fastmath jac[domain.indexes[4],domain.indexes[1]:domain.indexes[2]] .-= kLAs./kHs*R*T/P
-        elseif isa(inter,VolumetricFlowRateOutlet) && d == inter.domain
+        elseif isa(inter,VolumetricFlowRateOutlet) && domain == inter.domain
             # outlet
             # dTdt = 0
             # d/dni (dV/dt) = dflow/dni *R*T/P = inter.Vout/V*R*T/P = inter.Vout/N
@@ -2600,7 +2600,7 @@ end
                 @inbounds @fastmath jac[i,i] -= kLAs[i]/kHs[i]
             end
             @views @inbounds @fastmath jac[domain.indexes[3],domain.indexs[1]:domain.indexes[2]] .-= kLAs./kHs*R*T/P
-        elseif isa(inter,VolumetricFlowRateOutlet) && d == inter.domain
+        elseif isa(inter,VolumetricFlowRateOutlet) && domain == inter.domain
             # outlet
             # d/dni(dV/dt) = dflow/dni*R*T/P = inter.Vout(t)/V*R*T/P = inter.Vout(t)/N
             # d/dV(dV/dt) = dflow/dV *R*T/P = -inter.Vout*sum(ns)/V^2*R*T/P = -inter.Vout/V*sum(ns)/N
@@ -2707,7 +2707,7 @@ end
                 @inbounds jac[domain.indexes[3],i] -= ddnidTdt
                 @inbounds @fastmath jac[domain.indexes[4],i] -= kLAs[i]/kHs[i]*R*T/V + P/T*ddnidTdt
             end
-        elseif isa(inter,VolumetricFlowRateOutlet) && d == inter.domain
+        elseif isa(inter,VolumetricFlowRateOutlet) && domain == inter.domain
             # outlet
             # flow = inter.Vout(t)*sum(ns)/V
             # dflowdni = inter.Vout(t)/V
@@ -2839,7 +2839,7 @@ end
                 @inbounds @fastmath jac[i,i] -= kLAs[i]/kHs[i]
             end
             @views @inbounds @fastmath jac[domain.indexes[4],domain.indexes[1]:domain.indexes[2]] .-= kLAs./kHs*R*T/P
-        elseif isa(inter,VolumetricFlowRateOutlet) && d == inter.domain
+        elseif isa(inter,VolumetricFlowRateOutlet) && domain == inter.domain
             # outlet
             # dTdt = 0
             # d/dni (dV/dt) = dflow/dni *R*T/P = inter.Vout/V*R*T/P = inter.Vout/N
@@ -2886,7 +2886,7 @@ end
             @simd for i in domain.indexes[1]:domain.indexes[2]
                 @inbounds @fastmath jac[i,i] -= kLAs[i]
             end
-        elseif isa(inter,VolumetricFlowRateOutlet) && d == inter.domain
+        elseif isa(inter,VolumetricFlowRateOutlet) && domain == inter.domain
             @simd for i in domain.indexes[1]:domain.indexes[2]
                 @inbounds @fastmath jac[i,i] -= inter.Vout(t)/V
             end
