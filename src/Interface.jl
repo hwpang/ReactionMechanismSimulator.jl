@@ -157,12 +157,14 @@ end
 
 function evaluate(vl::VaporLiquidMassTransferInternalInterfaceConstantT,dydt,V1,V2,T1,T2,cstot,p::W) where {W<:DiffEqBase.NullParameters}
     kLAs, kHs = getkLAkHs(vl,T1,T2)
-    addreactionratecontributions!(dydt,vl.masstransferarray,cstot,kLAs,kLAs./kHs,V2)
+    addreactionratecontributions!(dydt,vl.masstransferarray,cstot,kLAs,zeros(length(kLAs)),V2)
+    addreactionratecontributions!(dydt,vl.masstransferarray,cstot,zeros(length(kLAs)),kLAs./kHs,V1)
 end
 
 function evaluate(vl::VaporLiquidMassTransferInternalInterfaceConstantT,dydt,V1,V2,T1,T2,cstot,p)
     kLAs, kHs = getkLAkHs(vl,T1,T2)
-    addreactionratecontributions!(dydt,vl.masstransferarray,cstot,kLAs,kLAs./kHs,V2)
+    addreactionratecontributions!(dydt,vl.masstransferarray,cstot,kLAs,zeros(length(kLAs)),V2)
+    addreactionratecontributions!(dydt,vl.masstransferarray,cstot,zeros(length(kLAs)),kLAs./kHs,V1)
 end
 export evaluate
 
