@@ -596,6 +596,24 @@ function jacobianp(y::U,p::W,t::Z,domain::V,interfaces::Q3,colorvec::Q2=nothing)
 end
 export jacobianp
 
+function jacobiany(y::U,p::W,t::Z,domains::V,interfaces::Q3,colorvec::Q2=nothing) where {Q3,Q2,U<:AbstractArray,W,Z<:Real,V<:Tuple}
+    J = zeros(length(y),length(y))
+    for domain in domains
+        jacobiany!(J,y,p,t,domain,interfaces,colorvec)
+    end
+    return J
+end
+export jacobiany
+
+function jacobianp(y::U,p::W,t::Z,domains::V,interfaces::Q3,colorvec::Q2=nothing) where {Q3,Q2,U<:AbstractArray,W,Z<:Real,V<:Tuple}
+    J = zeros(length(y),length(p))
+    for domain in domains
+        jacobianp!(J,y,p,t,domain,interfaces,colorvec)
+    end
+    return J
+end
+export jacobianp
+
 @inline function _spreadreactantpartials!(jac::S,deriv::Float64,rxnarray::Array{Int64,2},rxnind::Int64,ind::Int64) where {S<:AbstractArray}
     @inbounds jac[rxnarray[4,rxnind],ind] += deriv
     if @inbounds rxnarray[5,rxnind] !== 0
