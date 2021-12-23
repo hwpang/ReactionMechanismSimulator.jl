@@ -1787,6 +1787,12 @@ end
             dTdt = (P*inter.Vout(t))/(N*Cvave)
             dydt[d.indexes[3]] -= dTdt
             dydt[d.indexes[4]] -= inter.Vout(t)*P/V + P/T*dTdt
+        elseif isa(inter,PressureDependentOutlet) && d == inter.domain
+            flow = inter.F/inter.P*P
+            dydt[d.indexes[1]:d.indexes[2]] .-= flow.*ns./N
+            dTdt = (P*V/N*flow)/(N*Cvave)
+            dydt[d.indexes[3]] -= dTdt
+            dydt[d.indexes[4]] -= flow*R*T/V + P/T*dTdt
         end
     end
 end
@@ -2319,6 +2325,20 @@ end
                 @fastmath ddnidTdt = (inter.Vout*P/N)/(N*Cvave)-dTdt*(dCvavedni/Cvave)
                 @inbounds jac[domain.indexes[3],i] -= ddnidTdt
                 @inbounds @fastmath jac[domain.indexes[4],i] -= inter.Vout(t)/V*R*T/V + P/T*ddnidTdt
+            end
+        elseif isa(inter,PressureDependentOutlet) && d == inter.domain
+            flow = inter.F/inter.P*P
+            # dydt[d.indexes[1]:d.indexes[2]] .-= flow.*ns./N
+            # dTdt = (P*V/N*flow)/(N*Cvave)
+            # dydt[d.indexes[3]] -= dTdt
+            # dydt[d.indexes[4]] -= flow*R*T/V + P/T*dTdt
+            @fastmath dTdt = (P*V/N*flow)/(N*Cvave)
+            @simd for i in domain.indexes[1]:domain.indexes[2]
+                @inbounds @fastmath jac[i,i] -= flow/N
+                @inbounds @fastmath dCvavedni = cpdivR[i]*R/N
+                @fastmath ddnidTdt = -dTdt*(dCvavedni/Cvave)
+                @inbounds jac[domain.indexes[3],i] -= ddnidTdt
+                @inbounds @fastmath jac[domain.indexes[4],i] -= P/T*ddnidTdt
             end
         end
     end
