@@ -1734,7 +1734,7 @@ end
         elseif isa(inter,kLAkHCondensationEvaporationWithReservoir) && d == inter.domain
             kLAs = map.(inter.kLAs,inter.T)
             kHs = map.(inter.kHs,inter.T)
-            evap = kLAs.*inter.cs*V
+            evap = kLAs.*inter.cs*inter.V
             cond = kLAs.*ns./kHs
 
             dydt[d.indexes[1]:d.indexes[2]] .+= (evap .- cond)
@@ -1767,7 +1767,7 @@ end
         elseif isa(inter,kLAkHCondensationEvaporationWithReservoir) && d == inter.domain
             kLAs = map.(inter.kLAs,inter.T)
             kHs = map.(inter.kHs,inter.T)
-            evap = kLAs.*inter.cs*V
+            evap = kLAs.*inter.cs*inter.V
             cond = kLAs.*ns./kHs
             dydt[d.indexes[1]:d.indexes[2]] .+= (evap .- cond)
 
@@ -1810,7 +1810,7 @@ end
         elseif isa(inter,kLAkHCondensationEvaporationWithReservoir) && d == inter.domain
             kLAs = map.(inter.kLAs,inter.T)
             kHs = map.(inter.kHs,inter.T)
-            evap = kLAs.*inter.cs*V
+            evap = kLAs.*inter.cs*inter.V
             cond = kLAs.*ns./kHs
             dydt[d.indexes[1]:d.indexes[2]] .+= (evap .- cond)
 
@@ -1845,7 +1845,7 @@ end
         elseif isa(inter,kLAkHCondensationEvaporationWithReservoir) && d == inter.domain
             kLAs = map.(inter.kLAs,inter.T)
             kHs = map.(inter.kHs,inter.T)
-            evap = kLAs.*inter.cs*V
+            evap = kLAs.*inter.cs*inter.V
             cond = kLAs.*ns./kHs
             dydt[d.indexes[1]:d.indexes[2]] .+= (evap .- cond)
 
@@ -1884,7 +1884,7 @@ end
         elseif isa(inter,kLAkHCondensationEvaporationWithReservoir) && d == inter.domain
             kLAs = map.(inter.kLAs,inter.T)
             kHs = map.(inter.kHs,inter.T)
-            evap = kLAs.*inter.cs*V
+            evap = kLAs.*inter.cs*inter.V
             cond = kLAs.*ns./kHs
             dydt[d.indexes[1]:d.indexes[2]] .+= (evap .- cond)
 
@@ -1928,7 +1928,7 @@ end
         elseif isa(inter,kLAkHCondensationEvaporationWithReservoir) && d == inter.domain
             kLAs = map.(inter.kLAs,inter.T)
             kHs = map.(inter.kHs,inter.T)
-            evap = kLAs.*inter.cs*V
+            evap = kLAs.*inter.cs*inter.V
             cond = kLAs.*ns./kHs
             dydt[d.indexes[1]:d.indexes[2]] .+= (evap .- cond)
 
@@ -2254,7 +2254,7 @@ end
         elseif isa(inter,kLAkHCondensationEvaporationWithReservoir) && domain == inter.domain
             kLAs = map.(inter.kLAs,inter.T)
             kHs = map.(inter.kHs,inter.T)
-            evap = kLAs.*inter.cs*V
+            evap = kLAs.*inter.cs*inter.V
             cond = kLAs.*ns./kHs
 
             #evaporation
@@ -2475,7 +2475,7 @@ end
         elseif isa(inter,kLAkHCondensationEvaporationWithReservoir) && domain == inter.domain
             kLAs = map.(inter.kLAs,inter.T)
             kHs = map.(inter.kHs,inter.T)
-            evap = kLAs.*inter.cs*V
+            evap = kLAs.*inter.cs*inter.V
             
             # evaporation
             # inlet
@@ -2483,11 +2483,11 @@ end
             # ddnidTdt = flow*(-Hs[i]/N)/(N*Cpave)-dTdt*(dCpavedni/Cpave)
             # d/dni (dV/dt) = V/T * d/dni(dT/dt)
             # d/dV (dT/dt) = flow*(dot(Hs, ns)/N)/V/(N*Cpave)
-            # d/dV (dV/dt) = dflow/dV*R*T/P + dT/dt/T + V/T * d/dV(dT/dt) = flow/V*R*T/P + dT/dt/T + V/T * d/dV(dT/dt) = flow/N + dT/dt/T + V/T * d/dV(dT/dt)
-            # d/dV(dni/dt) = dflow_i/dV = kLAs[i]*inter.cs[i]
-            # dflowdV = sum(kLAs.*inter.cs) = flow/V
-            # flow_i = kLAs[i]*inter.cs[i]*V
-            # dflow_i/dV = kLAs[i]*inter.cs[i]
+            # d/dV (dV/dt) = dflow/dV*R*T/P + dT/dt/T + V/T * d/dV(dT/dt) = dT/dt/T + V/T * d/dV(dT/dt) = dT/dt/T + V/T * d/dV(dT/dt)
+            # d/dV(dni/dt) = dflow_i/dV = 0
+            # dflowdV = 0
+            # flow_i = kLAs[i]*inter.cs[i]*inter.V
+            # dflow_i/dV = 0
             flow = sum(evap)
             @fastmath H = dot(Hs,ns)/N
             @fastmath dTdt = flow*(inter.H - H)/(N*Cpave)
@@ -2499,8 +2499,7 @@ end
             end
             @fastmath ddVdTdt = flow*H/V/(N*Cpave)
             @inbounds jac[domain.indexes[3],domain.indexes[4]] += ddVdTdt
-            @inbounds @fastmath jac[domain.indexes[1]:domain.indexes[2],domain.indexes[4]] .+= kLAs.*inter.cs
-            @inbounds @fastmath jac[domain.indexes[4],domain.indexes[4]] += flow/N + dTdt/T + V/T*ddVdTdt
+            @inbounds @fastmath jac[domain.indexes[4],domain.indexes[4]] += fdTdt/T + V/T*ddVdTdt
 
             # condensation
             # outlet
@@ -2673,7 +2672,7 @@ end
         elseif isa(inter,kLAkHCondensationEvaporationWithReservoir) && domain == inter.domain
             kLAs = map.(inter.kLAs,inter.T)
             kHs = map.(inter.kHs,inter.T)
-            evap = kLAs.*inter.cs*V
+            evap = kLAs.*inter.cs*inter.V
             cond = kLAs.*ns./kHs
             
             # evaporation
@@ -2798,7 +2797,7 @@ end
         elseif isa(inter,kLAkHCondensationEvaporationWithReservoir) && domain == inter.domain
             kLAs = map.(inter.kLAs,inter.T)
             kHs = map.(inter.kHs,inter.T)
-            evap = kLAs.*inter.cs*V
+            evap = kLAs.*inter.cs*inter.V
             
             # evaporation
             # inlet
@@ -2806,11 +2805,11 @@ end
             # ddnidTdt = flow*(-Hs[i]/N)/(N*Cpave)-dTdt*(dCpavedni/Cpave)
             # d/dni (dV/dt) = V/T * d/dni(dT/dt)
             # d/dV (dT/dt) = flow*(dot(Hs, ns)/N)/V/(N*Cpave)
-            # d/dV (dV/dt) = dflow/dV*R*T/P + dT/dt/T + V/T * d/dV(dT/dt) = flow/V*R*T/P + dT/dt/T + V/T * d/dV(dT/dt) = flow/N + dT/dt/T + V/T * d/dV(dT/dt)
-            # d/dV(dni/dt) = dflow_i/dV = kLAs[i]*inter.cs[i]
-            # dflowdV = sum(kLAs.*inter.cs) = flow/V
+            # d/dV (dV/dt) = dT/dt/T + V/T * d/dV(dT/dt) = dT/dt/T + V/T * d/dV(dT/dt) = dT/dt/T + V/T * d/dV(dT/dt)
+            # d/dV(dni/dt) = dflow_i/dV = 0
+            # dflowdV = 0
             # flow_i = kLAs[i]*inter.cs[i]*V
-            # dflow_i/dV = kLAs[i]*inter.cs[i]
+            # dflow_i/dV = 0
             flow = sum(evap)
             @fastmath H = dot(Hs,ns)/N
             @fastmath dTdt = flow*(inter.H - H)/(N*Cpave)
@@ -2822,8 +2821,7 @@ end
             end
             @fastmath ddVdTdt = flow*H/V/(N*Cpave)
             @inbounds jac[domain.indexes[3],domain.indexes[4]] += ddVdTdt
-            @inbounds @fastmath jac[domain.indexes[1]:domain.indexes[2],domain.indexes[4]] .+= kLAs.*inter.cs
-            @inbounds @fastmath jac[domain.indexes[4],domain.indexes[4]] += flow/N + dTdt/T + V/T*ddVdTdt
+            @inbounds @fastmath jac[domain.indexes[4],domain.indexes[4]] += dTdt/T + V/T*ddVdTdt
 
             # condensation
             # outlet
