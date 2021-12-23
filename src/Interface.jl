@@ -127,38 +127,39 @@ function evaluate(di::DiffusiveInternalInterface,dydt,V1,V2,T1,T2,cstot,p)
 end
 export evaluate
 
-struct VaporLiquidMassTransferInternalInterface{T,B,N} <: AbstractInternalInterface
+struct VaporLiquidMassTransferInternalInterfaceConstantT{D1,D2,B} <: AbstractInternalInterface
     domain1::T
     domain2::N
     masstransferspcnames::Array{String,1}
     masstransferarray::B
+    kLAs::Array{Float64,1}
+    kHs::Array{Float64,1}
     parameterindexes::Array{Int64,1}
     domaininds::Array{Int64,1}
     p::Array{Float64,1}
 end
 
-function VaporLiquidMassTransferInternalInterface(domain1,domain2,masstransferspcnames)
+function VaporLiquidMassTransferInternalInterfaceConstantT(domain1,domain2,masstransferspcnames)
     @assert isa(domain1.phase,IdealGas)
     @assert isa(domain2.phase,IdealDiluteSolution)
+    T = domain2.T
     masstransferarray = getinterfacemasstransferinds(domain1,domain2,masstransferspcnames)
-    return VaporLiquidMassTransferInternalInterface(domain1,domain2,masstransferspcnames,masstransferarray,[1,length(masstransferspcnames)],[0,1],ones(length(masstransferspcnames))),ones(length(masstransferspcnames))
-end
-export VaporLiquidMassTransferInternalInterface
-
-function getkLAkHs(vl::VaporLiquidMassTransferInternalInterface,T1,T2)
-    phase = vl.domain2.phase
-    T = T2
     kLAs = [kLA(T=T) for kLA in getfield.(phase.species,:liquidvolumetricmasstransfercoefficient)]
     kHs = [kH(T=T) for kH in getfield.(phase.species,:henrylawconstant)]
-    return kLAs, kHs
+    return VaporLiquidMassTransferInternalInterfaceConstantT(domain1,domain2,masstransferspcnames,masstransferarray,kLAs,kHs,[1,length(masstransferspcnames)],[0,1],ones(length(masstransferspcnames))),ones(length(masstransferspcnames))
+end
+export VaporLiquidMassTransferInternalInterfaceConstantT
+
+function getkLAkHs(vl::VaporLiquidMassTransferInternalInterfaceConstantT,T1,T2)    
+    return vl.kLAs, vl.kHs
 end
 
-function evaluate(vl::VaporLiquidMassTransferInternalInterface,dydt,V1,V2,T1,T2,cstot,p::W) where {W<:DiffEqBase.NullParameters}
+function evaluate(vl::VaporLiquidMassTransferInternalInterfaceConstantT,dydt,V1,V2,T1,T2,cstot,p::W) where {W<:DiffEqBase.NullParameters}
     kLAs, kHs = getkLAkHs(vl,T1,T2)
     addreactionratecontributions!(dydt,vl.masstransferarray,cstot,-kLAs,kLAs./kHs,V2)
 end
 
-function evaluate(vl::VaporLiquidMassTransferInternalInterface,dydt,V1,V2,T1,T2,cstot,p)
+function evaluate(vl::VaporLiquidMassTransferInternalInterfaceConstantT,dydt,V1,V2,T1,T2,cstot,p)
     kLAs, kHs = getkLAkHs(vl,T1,T2)
     addreactionratecontributions!(dydt,vl.masstransferarray,cstot,-kLAs,kLAs./kHs,V2)
 end
