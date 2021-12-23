@@ -2121,7 +2121,7 @@ end
             flow = sum(kLAs.*ns./kHs) 
             @simd for i in domain.indexes[1]:domain.indexes[2]
                 @inbounds @fastmath jac[i,i] -= kLAs[i]/kHs[i]
-                @inbounds @fastmath jac[i,i] += kLAs[i]/kHs[i]*R*T/P*ns/V + -flow*R*T/P*ns[i]/V
+                @inbounds @fastmath jac[i,i] += -kLAs[i]/kHs[i]*R*T/P*ns[i]/V
             end
         elseif isa(inter,VolumetricFlowRateOutlet) && domain == inter.domain
             # outlet
