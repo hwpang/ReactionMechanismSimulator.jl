@@ -184,12 +184,31 @@ function evaluate(vl::VaporLiquidMassTransferInternalInterfaceConstantT,dydt,V1,
     end
 end
 
-function evaluate(vl::VaporLiquidMassTransferInternalInterfaceConstantT,dydt,V1,V2,T1,T2,cstot,p)
+function evaluate(vl::VaporLiquidMassTransferInternalInterfaceConstantT,dydt,V1,V2,T1,T2,N1,N2,P1,P2,Cvave1,Cvave2,ns1,ns2,cstot,p)
     kLAs, kHs = getkLAkHs(vl,T1,T2)
     @views @inbounds @fastmath evap = kLAs.*cstot[vl.masstransferarray[1,:]]*V2
     @views @inbounds @fastmath cond = kLAs./kHs.*cstot[vl.masstransferarray[4,:]]*V1
-    @views @inbounds @fastmath dydt[vl.masstransferarray[1,:]] .-= (evap .- cond)
-    @views @inbounds @fastmath dydt[vl.masstransferarray[4,:]] .+= (evap .- cond)
+    R = (evap .- cond)
+    @views @inbounds @fastmath dydt[vl.masstransferarray[1,:]] .-= R
+    @views @inbounds @fastmath dydt[vl.masstransferarray[4,:]] .+= R
+
+    if isa(vl.domain1,ConstantVDomain)
+        N = N1
+        P = P1
+        T = T1
+        ns = ns1
+        Cvave = Cvave1
+        flow = sum(evap)
+        molefractions = evap./flow
+        dTdt = flow*(dot(inter.Hs,molefractions) - dot(Us,ns)/N)/(N*Cvave)
+        dydt[vl.domain1.indexes[3]] += dTdt
+        dydt[vl.domain1.indexes[4]] += flow*R*T/V + P/T*dTdt
+
+        flow = sum(cond)
+        dTdt = (P*V/N*flow)/(N*Cvave)
+        dydt[vl.domain1.indexes[3]] -= dTdt
+        dydt[vl.domain1.indexes[4]] -= flow*R*T/V + P/T*dTdt
+    end
 end
 export evaluate
 
