@@ -147,7 +147,7 @@ function VaporLiquidMassTransferInternalInterfaceConstantT(domain1,domain2,masst
     masstransferarray = getinterfacemasstransferinds(domain1,domain2,masstransferspcnames)
     kLAs = [kLA(T=T) for kLA in getfield.(phase.species,:liquidvolumetricmasstransfercoefficient)]
     kHs = [kH(T=T) for kH in getfield.(phase.species,:henrylawconstant)]
-    return VaporLiquidMassTransferInternalInterfaceConstantT(domain1,domain2,masstransferspcnames,masstransferarray,kLAs,kHs,[1,length(masstransferspcnames)],[0,1],ones(length(masstransferspcnames))),ones(length(masstransferspcnames))
+    return VaporLiquidMassTransferInternalInterfaceConstantT(domain1,domain2,masstransferspcnames,masstransferarray,kLAs,kHs,[1,length(masstransferspcnames)],[0,0],ones(length(masstransferspcnames))),ones(length(masstransferspcnames))
 end
 export VaporLiquidMassTransferInternalInterfaceConstantT
 

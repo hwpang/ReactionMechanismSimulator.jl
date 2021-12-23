@@ -129,26 +129,29 @@ function Reactor(domains::T,y0s::W,tspan::W2,interfaces::Z=Tuple(),ps::X=DiffEqB
             p = vcat(p,ps[i])
         end
     end
-    
-    for (i,inter) in enumerate(interfaces)
+
+    k=1
+    for inter in interfaces
         if isa(inter, AbstractReactiveInternalInterface)
             ind1 = findfirst(isequal(inter.domain1),domains)
             ind2 = findfirst(isequal(inter.domain2),domains)
             inter.domaininds[1] = ind1
             inter.domaininds[2] = ind2
             inter.parameterindexes[1] = length(p)+1
-            inter.parameterindexes[2] = length(p)+length(ps[i+length(domains)])
+            inter.parameterindexes[2] = length(p)+length(ps[k+length(domains)])
             inter.rxnarray .= getinterfacereactioninds(inter.domain1,inter.domain2,inter.reactions)
-            p = vcat(p,ps[i+length(domains)])
+            p = vcat(p,ps[k+length(domains)])
+            k+=1
         elseif isa(inter, VaporLiquidMassTransferInternalInterfaceConstantT)
             ind1 = findfirst(isequal(inter.domain1),domains)
             ind2 = findfirst(isequal(inter.domain2),domains)
             inter.domaininds[1] = ind1
             inter.domaininds[2] = ind2
             inter.parameterindexes[1] = length(p)+1
-            inter.parameterindexes[2] = length(p)+length(ps[i+length(domains)])
+            inter.parameterindexes[2] = length(p)+length(ps[k+length(domains)])
             inter.masstransferarray .= getinterfacemasstransferinds(inter.domain1,inter.domain2,inter.masstransferspcnames)
-            p = vcat(p,ps[i+length(domains)])
+            p = vcat(p,ps[k+length(domains)])
+            k+=1
         end
     end
     
