@@ -1787,8 +1787,8 @@ end
             dTdt = (P*inter.Vout(t))/(N*Cvave)
             dydt[d.indexes[3]] -= dTdt
             dydt[d.indexes[4]] -= inter.Vout(t)*P/V + P/T*dTdt
-        elseif isa(inter,PressureDependentOutlet) && d == inter.domain
-            flow = inter.F/inter.P*P
+        elseif isa(inter,TPDependentOutlet) && d == inter.domain
+            flow = inter.F/inter.P*P*inter.T/T
             dydt[d.indexes[1]:d.indexes[2]] .-= flow.*ns./N
             dTdt = (P*V/N*flow)/(N*Cvave)
             dydt[d.indexes[3]] -= dTdt
@@ -2323,8 +2323,8 @@ end
                 @inbounds jac[domain.indexes[3],i] -= ddnidTdt
                 @inbounds @fastmath jac[domain.indexes[4],i] -= inter.Vout(t)/V*R*T/V + P/T*ddnidTdt
             end
-        elseif isa(inter,PressureDependentOutlet) && domain == inter.domain
-            flow = inter.F/inter.P*P
+        elseif isa(inter,TPDependentOutlet) && domain == inter.domain
+            flow = inter.F/inter.P*P*inter.T/T
             # dydt[d.indexes[1]:d.indexes[2]] .-= flow.*ns./N
             # dTdt = (P*V/N*flow)/(N*Cvave)
             # dydt[d.indexes[3]] -= dTdt
