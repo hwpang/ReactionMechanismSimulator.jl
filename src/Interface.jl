@@ -148,7 +148,7 @@ function VaporLiquidMassTransferInternalInterfaceConstantT(domain1,domain2,masst
     masstransferarray = zeros(Int64,(6,length(masstransferspcnames)))
     kLAs = [kLA(T=T) for kLA in getfield.(phase.species,:liquidvolumetricmasstransfercoefficient)]
     kHs = [kH(T=T) for kH in getfield.(phase.species,:henrylawconstant)]
-    Hs = getEnthalpy.(getfield.(domain2.phase.species,:thermo),T)
+    Hs = getEnthalpy.(getfield.(phase.species,:thermo),T)
     return VaporLiquidMassTransferInternalInterfaceConstantT(domain1,domain2,masstransferspcnames,masstransferarray,kLAs,kHs,Hs,[1,length(masstransferspcnames)],[0,0],ones(length(masstransferspcnames))),ones(length(masstransferspcnames))
 end
 export VaporLiquidMassTransferInternalInterfaceConstantT
@@ -161,9 +161,9 @@ function evaluate(vl::VaporLiquidMassTransferInternalInterfaceConstantT,dydt,V1,
     kLAs, kHs = getkLAkHs(vl,T1,T2)
     @views @inbounds @fastmath evap = kLAs.*cstot[vl.masstransferarray[1,:]]*V2
     @views @inbounds @fastmath cond = kLAs./kHs.*cstot[vl.masstransferarray[4,:]]*V1
-    R = (evap .- cond)
-    @views @inbounds @fastmath dydt[vl.masstransferarray[1,:]] .-= R
-    @views @inbounds @fastmath dydt[vl.masstransferarray[4,:]] .+= R
+    flux = (evap .- cond)
+    @views @inbounds @fastmath dydt[vl.masstransferarray[1,:]] .-= flux
+    @views @inbounds @fastmath dydt[vl.masstransferarray[4,:]] .+= flux
 
     if isa(vl.domain1,ConstantVDomain)
         N = N1
@@ -190,9 +190,9 @@ function evaluate(vl::VaporLiquidMassTransferInternalInterfaceConstantT,dydt,V1,
     kLAs, kHs = getkLAkHs(vl,T1,T2)
     @views @inbounds @fastmath evap = kLAs.*cstot[vl.masstransferarray[1,:]]*V2
     @views @inbounds @fastmath cond = kLAs./kHs.*cstot[vl.masstransferarray[4,:]]*V1
-    R = (evap .- cond)
-    @views @inbounds @fastmath dydt[vl.masstransferarray[1,:]] .-= R
-    @views @inbounds @fastmath dydt[vl.masstransferarray[4,:]] .+= R
+    flux = (evap .- cond)
+    @views @inbounds @fastmath dydt[vl.masstransferarray[1,:]] .-= flux
+    @views @inbounds @fastmath dydt[vl.masstransferarray[4,:]] .+= flux
 
     if isa(vl.domain1,ConstantVDomain)
         N = N1
@@ -202,16 +202,10 @@ function evaluate(vl::VaporLiquidMassTransferInternalInterfaceConstantT,dydt,V1,
         ns = ns1
         Us = Us1
         Cvave = Cvave1
-
         flow = sum(evap)
         molefractions = evap./flow
         dTdt = flow*(dot(vl.Hs,molefractions) - dot(Us,ns)/N)/(N*Cvave)
         dydt[vl.domain1.indexes[3]] += dTdt
-        print(flow)
-        print(T)
-        print(V)
-        print(P)
-        print(dTdt)
         dydt[vl.domain1.indexes[4]] += flow*R*T/V + P/T*dTdt
 
         flow = sum(cond)
