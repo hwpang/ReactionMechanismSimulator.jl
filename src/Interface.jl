@@ -389,11 +389,12 @@ kLA and kH are used to model cond/evap.
 kLA is liquid volumetric mass transfer coefficient with unit 1/s , and kH is Henry's law constant.
 """
 
-struct kLAkHCondensationEvaporationWithReservoir{S,V1<:AbstractArray,V2<:Real,V3<:Real,V4<:AbstractArray,V5<:Real,V6<:AbstractArray,V7<:AbstractArray} <: AbstractBoundaryInterface
+struct kLAkHCondensationEvaporationWithReservoir{S,V1<:AbstractArray,V2<:Real,V3<:Real,V4<:AbstractArray,V5<:Real,V6<:AbstractArray,V7<:AbstractArray,V8<:Real} <: AbstractBoundaryInterface
     domain::S
     molefractions::V1
     T::V2
     P::V3
+    V::V8
     cs::V4
     H::V5
     kLAs::V6
@@ -413,14 +414,14 @@ function kLAkHCondensationEvaporationWithReservoir(domain::D,conddict::Dict{X1,X
             @error "P needs to be specified for the vapor resevoir over the liquid phase domain"
         end
         P = conddict["P"]
-        return kLAkHCondensationEvaporationWithReservoir(domain,molefractions,T,P,Array{Float64,1}(),H,kLAs,kHs)
+        return kLAkHCondensationEvaporationWithReservoir(domain,molefractions,T,P,0.0,Array{Float64,1}(),H,kLAs,kHs)
     elseif isa(domain.phase,IdealGas)
         if !haskey(conddict,"V")
             @error "V needs to be specified for the liquid resevoir under the gas phase domain"
         end
         V = conddict["V"]
         cs = y./V
-        return kLAkHCondensationEvaporationWithReservoir(domain,Array{Float64,1}(),T,1e8,cs,H,kLAs,kHs)
+        return kLAkHCondensationEvaporationWithReservoir(domain,Array{Float64,1}(),T,1e8,V,cs,H,kLAs,kHs)
     end
 end
 
