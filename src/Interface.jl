@@ -162,7 +162,7 @@ function evaluate(vl::VaporLiquidMassTransferInternalInterfaceConstantT,dydt,V1,
     @views @inbounds @fastmath dydt[vl.masstransferarray[1,:]] .-= (evap .- cond)
     @views @inbounds @fastmath dydt[vl.masstransferarray[4,:]] .+= (evap .- cond)
     Vout = sum(evap .- cond)*R*T1/P1
-    @views @inbounds dydt[vl.domain1.indexes[1]:vl.domain1.indexes[2]] .-= Vout*cstot[vl.domain1.indexes[1]:vl.domain2.indexes[2]]
+    @views @inbounds dydt[vl.domain1.indexes[1]:vl.domain1.indexes[2]] .-= Vout*cstot[vl.domain1.indexes[1]:vl.domain1.indexes[2]]
 end
 
 function evaluate(vl::VaporLiquidMassTransferInternalInterfaceConstantT,dydt,V1,V2,T1,T2,P1,P2,cstot,p)
@@ -172,7 +172,7 @@ function evaluate(vl::VaporLiquidMassTransferInternalInterfaceConstantT,dydt,V1,
     @views @inbounds @fastmath dydt[vl.masstransferarray[1,:]] .-= (evap .- cond)
     @views @inbounds @fastmath dydt[vl.masstransferarray[4,:]] .+= (evap .- cond)
     Vout = sum(evap .- cond)*R*T1/P1
-    @views @inbounds dydt[vl.domain1.indexes[1]:vl.domain1.indexes[2]] .-= Vout*cstot[vl.domain1.indexes[1]:vl.domain2.indexes[2]]
+    @views @inbounds dydt[vl.domain1.indexes[1]:vl.domain1.indexes[2]] .-= Vout*cstot[vl.domain1.indexes[1]:vl.domain1.indexes[2]]
 end
 export evaluate
 
