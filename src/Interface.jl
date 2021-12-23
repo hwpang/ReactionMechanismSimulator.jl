@@ -157,14 +157,18 @@ end
 
 function evaluate(vl::VaporLiquidMassTransferInternalInterfaceConstantT,dydt,V1,V2,T1,T2,cstot,p::W) where {W<:DiffEqBase.NullParameters}
     kLAs, kHs = getkLAkHs(vl,T1,T2)
-    addreactionratecontributions!(dydt,vl.masstransferarray,cstot,kLAs,zeros(length(kLAs)),V2)
-    addreactionratecontributions!(dydt,vl.masstransferarray,cstot,zeros(length(kLAs)),kLAs./kHs,V1)
+    @views @inbounds @fastmath evap = kLAs.*cstot[vl.masstransferarray[1,:]]*V2
+    @views @inbounds @fastmath cond = kLAs./kHs.*cstot[vl.masstransferarray[4,:]]*V1
+    @views @inbounds @fastmath dydt[vl.masstransferarray[1,:]] .-= (evap .- cond)
+    @views @inbounds @fastmath dydt[vl.masstransferarray[4,:]] .+= (evap .- cond)
 end
 
 function evaluate(vl::VaporLiquidMassTransferInternalInterfaceConstantT,dydt,V1,V2,T1,T2,cstot,p)
     kLAs, kHs = getkLAkHs(vl,T1,T2)
-    addreactionratecontributions!(dydt,vl.masstransferarray,cstot,kLAs,zeros(length(kLAs)),V2)
-    addreactionratecontributions!(dydt,vl.masstransferarray,cstot,zeros(length(kLAs)),kLAs./kHs,V1)
+    @views @inbounds @fastmath evap = kLAs.*cstot[vl.masstransferarray[1,:]]*V2
+    @views @inbounds @fastmath cond = kLAs./kHs.*cstot[vl.masstransferarray[4,:]]*V1
+    @views @inbounds @fastmath dydt[vl.masstransferarray[1,:]] .-= (evap .- cond)
+    @views @inbounds @fastmath dydt[vl.masstransferarray[4,:]] .+= (evap .- cond)
 end
 export evaluate
 
