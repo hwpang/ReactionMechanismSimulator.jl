@@ -2102,7 +2102,7 @@ end
             # flow_i = inter.kLAs[i]*inter.cs[i]*inter.V
             # d/dV(dni/dt) = dflow_i/dV = 0
             # dydt[d.indexes[1]:d.indexes[2]] .-= Vout*ns/V = flow*R*T/P*ns/V
-            flow = sum(inter.kLAs.*inter.cs*inter.V)
+            flow = sum(kLAs.*inter.cs*inter.V)
             @simd for i in domain.indexes[1]:domain.indexes[2]
                 @inbounds @fastmath jac[i,i] -= flow*R*T/P/V*ns[i]
             end
