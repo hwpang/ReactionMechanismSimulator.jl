@@ -169,6 +169,7 @@ function evaluate(vl::VaporLiquidMassTransferInternalInterfaceConstantT,dydt,V1,
         N = N1
         P = P1
         T = T1
+        V = V1
         ns = ns1
         Us = Us1
         Cvave = Cvave1
@@ -197,6 +198,7 @@ function evaluate(vl::VaporLiquidMassTransferInternalInterfaceConstantT,dydt,V1,
         N = N1
         P = P1
         T = T1
+        V = V1
         ns = ns1
         Us = Us1
         Cvave = Cvave1
