@@ -1737,7 +1737,8 @@ end
             evap = kLAs.*inter.cs*inter.V
             cond = kLAs.*ns./kHs
 
-            dydt[d.indexes[1]:d.indexes[2]] .+= (evap .- cond)
+            @views @inbounds dydt[d.indexes[1]:d.indexes[2]] .+= (evap .- cond)
+            @inbounds dydt[d.indexes[3]] .+= sum(evap .- cond)*R*T/P
         elseif isa(inter,VolumetricFlowRateOutlet) && d == inter.domain
             dydt[d.indexes[1]:d.indexes[2]] .-= inter.Vout(t)*ns/V
             dydt[d.indexes[3]] -= inter.Vout(t)
