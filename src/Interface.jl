@@ -128,8 +128,8 @@ end
 export evaluate
 
 struct VaporLiquidMassTransferInternalInterfaceConstantT{D1,D2,B} <: AbstractInternalInterface
-    domain1::T
-    domain2::N
+    domain1::D1
+    domain2::D2
     masstransferspcnames::Array{String,1}
     masstransferarray::B
     kLAs::Array{Float64,1}
