@@ -200,7 +200,7 @@ function evaluate(vl::VaporLiquidMassTransferInternalInterfaceConstantT,dydt,V1,
         Cvave = Cvave1
         flow = sum(evap)
         molefractions = evap./flow
-        dTdt = flow*(dot(inter.Hs,molefractions) - dot(Us,ns)/N)/(N*Cvave)
+        dTdt = flow*(dot(vl.Hs,molefractions) - dot(Us,ns)/N)/(N*Cvave)
         dydt[vl.domain1.indexes[3]] += dTdt
         dydt[vl.domain1.indexes[4]] += flow*R*T/V + P/T*dTdt
 
