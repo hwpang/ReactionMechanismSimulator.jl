@@ -506,7 +506,7 @@ end
     end
     for (i,inter) in enumerate(interfaces)
         if isa(inter,VaporLiquidMassTransferInternalInterfaceConstantT)
-            evaluate(inter,dydt,vV[inter.domaininds[1]],vV[inter.domaininds[2]],vT[inter.domaininds[1]],vT[inter.domaininds[2]],cstot,p)
+            evaluate(inter,dydt,vV[inter.domaininds[1]],vV[inter.domaininds[2]],vT[inter.domaininds[1]],vT[inter.domaininds[2]],vN[inter.domaininds[1]],vN[inter.domaininds[2]],vP[inter.domaininds[1]],vP[inter.domaininds[2]],vCvave[inter.domaininds[1]],vCvave[inter.domaininds[2]],vns[inter.domaininds[1]],vns[inter.domaininds[2]],cstot,p)
         end
     end
     return dydt
