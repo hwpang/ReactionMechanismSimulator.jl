@@ -278,6 +278,7 @@ function processfluxes(sim::SystemSimulation,
     corespeciesconcentrations = cs[corespcsinds]
     corespeciesconsumptionrates = zeros(length(corespeciesconcentrations))
     corespeciesproductionrates = zeros(length(corespeciesconcentrations))
+    corespeciesnetconsumptionrates = zeros(length(corespeciesconcentrations))
     
     #process core species consumption and production rates
     index = 1
@@ -286,10 +287,14 @@ function processfluxes(sim::SystemSimulation,
             if any(d.rxnarray[:,i].>length(corespeciesconcentrations))
                 continue
             end
+            flux = frts[i+index] - rrts[i+index]
             for j = 1:3
                 if d.rxnarray[j,i] != 0
                     corespeciesconsumptionrates[d.rxnarray[j,i]] += frts[i+index]
                     corespeciesproductionrates[d.rxnarray[j,i]] += rrts[i+index]
+                    if flux > 0
+                        corespeciesnetconsumptionrates[d.rxnarray[j,i]] += flux
+                    end
                 else
                     break
                 end
@@ -298,6 +303,9 @@ function processfluxes(sim::SystemSimulation,
                 if d.rxnarray[j,i] != 0
                     corespeciesproductionrates[d.rxnarray[j,i]] += frts[i+index]
                     corespeciesconsumptionrates[d.rxnarray[j,i]] += rrts[i+index]
+                    if flux < 0
+                        corespeciesnetconsumptionrates[d.rxnarray[j,i]] += flux
+                    end
                 else
                     break
                 end
@@ -308,6 +316,7 @@ function processfluxes(sim::SystemSimulation,
     for d in sim.interfaces
         if hasproperty(d,:rxnarray)
             for i = 1:size(d.rxnarray)[2]
+                flux = frts[i+index] - rrts[i+index]
                 if any(d.rxnarray[:,i].>length(corespeciesconcentrations))
                     continue
                 end
@@ -315,6 +324,9 @@ function processfluxes(sim::SystemSimulation,
                     if d.rxnarray[j,i] != 0
                         corespeciesconsumptionrates[d.rxnarray[j,i]] += frts[i+index]
                         corespeciesproductionrates[d.rxnarray[j,i]] += rrts[i+index]
+                        if flux > 0
+                            corespeciesnetconsumptionrates[d.rxnarray[j,i]] += flux
+                        end
                     else
                         break
                     end
@@ -323,6 +335,9 @@ function processfluxes(sim::SystemSimulation,
                     if d.rxnarray[j,i] != 0
                         corespeciesproductionrates[d.rxnarray[j,i]] += frts[i+index]
                         corespeciesconsumptionrates[d.rxnarray[j,i]] += rrts[i+index]
+                        if flux < 0
+                            corespeciesnetconsumptionrates[d.rxnarray[j,i]] += flux
+                        end
                     else
                         break
                     end
@@ -332,7 +347,7 @@ function processfluxes(sim::SystemSimulation,
         end
     end
 
-    return dydt,rts,frts,rrts,cs,corespeciesrates,charrate,edgespeciesrates,edgereactionrates,corespeciesrateratios,edgespeciesrateratios,corereactionrates,corespeciesconcentrations,corespeciesproductionrates,corespeciesconsumptionrates
+    return dydt,rts,frts,rrts,cs,corespeciesrates,charrate,edgespeciesrates,edgereactionrates,corespeciesrateratios,edgespeciesrateratios,corereactionrates,corespeciesconcentrations,corespeciesproductionrates,corespeciesconsumptionrates, 
 end
 
 """
@@ -352,6 +367,7 @@ function processfluxes(sim::Simulation,corespcsinds,corerxninds,edgespcsinds,edg
     corespeciesconcentrations = cs[corespcsinds]
     corespeciesconsumptionrates = zeros(length(corespeciesconcentrations))
     corespeciesproductionrates = zeros(length(corespeciesconcentrations))
+    corespeciesnetconsumptionrates = zeros(length(corespeciesconcentrations))
     
     #process core species consumption and production rates
     d = sim.domain
@@ -363,6 +379,10 @@ function processfluxes(sim::Simulation,corespcsinds,corerxninds,edgespcsinds,edg
             if d.rxnarray[j,i] != 0
                 corespeciesconsumptionrates[d.rxnarray[j,i]] += frts[i]
                 corespeciesproductionrates[d.rxnarray[j,i]] += rrts[i]
+                flux = rrts[i+index] - frts[i+index]
+                if flux > 0
+                    corespeciesnetconsumptionrates[d.rxnarray[j,i]] += flux
+                end
             else
                 break
             end
@@ -371,13 +391,17 @@ function processfluxes(sim::Simulation,corespcsinds,corerxninds,edgespcsinds,edg
             if d.rxnarray[j,i] != 0
                 corespeciesproductionrates[d.rxnarray[j,i]] += frts[i]
                 corespeciesconsumptionrates[d.rxnarray[j,i]] += rrts[i]
+                flux = rrts[i+index] - frts[i+index]
+                if flux > 0
+                    corespeciesnetconsumptionrates[d.rxnarray[j,i]] += flux
+                end
             else
                 break
             end
         end
     end
     
-    return dydt,rts,frts,rrts,cs,corespeciesrates,charrate,edgespeciesrates,edgereactionrates,corespeciesrateratios,edgespeciesrateratios,corereactionrates,corespeciesconcentrations,corespeciesproductionrates,corespeciesconsumptionrates
+    return dydt,rts,frts,rrts,cs,corespeciesrates,charrate,edgespeciesrates,edgereactionrates,corespeciesrateratios,edgespeciesrateratios,corereactionrates,corespeciesconcentrations,corespeciesproductionrates,corespeciesnetconsumptionrates
 end
 
 export processfluxes
@@ -436,6 +460,67 @@ end
 export calcbranchingnumbers
 
 """
+Calculate branching numbers for appropriate reactions for use in evaluating
+the branching criterion: 1.0 < branchfactor * max(branchingratio,branchingratiomax) * rateratio^branchingindex
+"""
+function calclossratios(sim,reactantinds,productinds,corespcsinds,corerxninds,edgereactionrates, corespeciesnetconsumptionrates)
+    lossratios = zeros(length(edgereactionrates))
+    for index in 1:length(edgereactionrates)
+        reactionrate = edgereactionrates[index]
+            
+        if reactionrate > 0
+            reactantside = reactantinds[:,index+length(corerxninds)]
+            productside = productinds[:,index+length(corerxninds)]
+        else
+            reactantside = productinds[:,index+length(corerxninds)]
+            productside = reactantinds[:,index+length(corerxninds)]
+        end
+            
+        productrade = [sim.species[i].radicalelectrons for i in productside if i != 0]
+        reactantrade = [sim.species[i].radicalelectrons for i in reactantside if i != 0]
+            
+        HAbs_or_RRecom = false
+
+        if length(productrade) == 1 && length(reactantrade) == 2
+            if productrade[1] == 0 && reactantrade[1] == 1 && reactantrade[2] == 1
+                HAbs_or_RRecom = true
+            end
+        elseif length(reactantrade) == length(productrade)
+            if (0 in reactantrade && 1 in reactantrade) && (0 in productrade && 1 in productrade)
+                HAbs_or_RRecom = true
+            end
+        end
+
+        if !HAbs_or_RRecom
+            continue
+        end
+            
+        for spcindex in reactantside
+            if spcindex == 0 
+                continue
+            elseif spcindex < length(corespcsinds)
+                if sim.species[spcindex].radicalelectrons != 1
+                    continue
+                end
+                consumption = corespeciesnetconsumptionrates[spcindex]
+                if consumption != 0.0
+                    lossratio = abs(reactionrate) / consumption
+                else
+                    lossratio = abs(reactionrate) / 1e-40
+                end
+                        
+                if lossratio > lossratios[index]
+                    lossratios[index] = lossratio
+                end
+            end
+        end
+    end
+   return lossratios
+end
+
+export calcbranchingnumbers
+
+"""
 determine species pairings that are concentrated enough that they should be reacted
 """
 function updatefilterthresholds!(sim,corespcsinds,corespeciesconcentrations,charrate,
@@ -486,7 +571,7 @@ function identifyobjects!(sim,corespcsinds,corerxninds,edgespcsinds,
         edgerxninds,reactantinds,productinds,unimolecularthreshold,bimolecularthreshold,
         trimolecularthreshold,maxedgespeciesrateratios,tolmovetocore,tolinterruptsimulation,
         ignoreoverallfluxcriterion,filterreactions,maxnumobjsperiter,branchfactor,branchingratiomax,
-        branchingindex,terminateatmaxobjects,termination,y0,invalidobjects,firsttime,
+        branchingindex,lossratiotolerance,terminateatmaxobjects,termination,y0,invalidobjects,firsttime,
         filterthreshold)
     
     rxnarray = vcat()
@@ -502,7 +587,7 @@ function identifyobjects!(sim,corespcsinds,corerxninds,edgespcsinds,
     (dydt,rts,frts,rrts,cs,corespeciesratse,charrate,edgespeciesrates,
     edgereactionrates,corespeciesrateratios,edgespeciesrateratios,
     corereactionrates,corespeciesconcentrations,corespeciesproductionrates,
-    corespeciesconsumptionrates) = processfluxes(sim,corespcsinds,corerxninds,edgespcsinds,edgerxninds)
+    corespeciesconsumptionrates, corespeciesnetconsumptionrates) = processfluxes(sim,corespcsinds,corerxninds,edgespcsinds,edgerxninds)
     
     for i = 1:length(edgespeciesrateratios)
         if edgespeciesrateratios[i] > maxedgespeciesrateratios[i]
@@ -518,6 +603,10 @@ function identifyobjects!(sim,corespcsinds,corerxninds,edgespcsinds,
         @info "at time $t s, species $name was added to model core to avoid singularity"
         push!(invalidobjects,sim.species[index])
         return (false,true,0.0)
+    end
+
+    if lossratiotolerance != 0.0 && !firsttime
+        lossratios = calclossratios(sim,reactantinds,productinds,corespcsinds,corerxninds,edgereactionrates,corespeciesnetconsumptionrates)
     end
     
     if branchfactor != 0.0 && !firsttime
@@ -564,6 +653,34 @@ function identifyobjects!(sim,corespcsinds,corerxninds,edgespcsinds,
             end
         end
         
+        sortedinds = reverse(sortperm(tempnewobjectvals))
+        
+        for q in sortedinds
+            push!(newobjects,tempnewobjects[q])
+            push!(newobjectinds,tempnewobjectinds[q])
+            push!(newobjectvals,tempnewobjectvals[q])
+            push!(newobjecttype,tempnewobjecttype[q])
+        end
+        
+        tempnewobjects = []
+        tempnewobjectinds = Array{Int64,1}()
+        tempnewobjectvals = Array{Float64,1}()
+        tempnewobjecttype = []
+    end
+
+    if lossratiotolerance != 0.0 && !firsttime
+        for (i,ind) in enumerate(edgerxninds)
+            lr = lossratios[i]
+            if lr > lossratiotolerance
+                obj = sim.reactions[ind+numcorerxns]
+                if !(obj in newobjects || obj in invalidobjects)
+                    push!(tempnewobjects,obj)
+                    push!(tempnewobjectinds,ind)
+                    push!(tempnewobjectvals,bnum)
+                    push!(tempnewobjecttype,"connecting")
+                end
+            end
+        end
         sortedinds = reverse(sortperm(tempnewobjectvals))
         
         for q in sortedinds
@@ -689,7 +806,7 @@ run edge analysis to determine objects (species/reactions) that should be added 
 function selectobjects(react,coreedgedomains,coreedgeinters,domains,inters,
                 corep,coreedgep,tolmovetocore,tolinterruptsimulation,ignoreoverallfluxcriterion,filterreactions,
                 maxnumobjsperiter,tolbranchrxntocore,branchingratiomax,
-                branchingindex,terminateatmaxobjects,termination,
+                branchingindex,lossratiotolerance,terminateatmaxobjects,termination,
                 filterthreshold;
                 atol=1e-20,rtol=1e-6,solver=CVODE_BDF())
             
@@ -733,7 +850,7 @@ function selectobjects(react,coreedgedomains,coreedgeinters,domains,inters,
             edgerxninds,reactantindices,productindices,unimolecularthreshold,bimolecularthreshold,
                 trimolecularthreshold,maxedgespeciesrateratios,tolmovetocore,tolinterruptsimulation,ignoreoverallfluxcriterion,filterreactions,
                 maxnumobjsperiter,branchfactor,branchingratiomax,
-                branchingindex,terminateatmaxobjects,termination,y0,invalidobjects,firsttime,
+                branchingindex,lossratiotolerance,terminateatmaxobjects,termination,y0,invalidobjects,firsttime,
                 filterthreshold)
         if firsttime
             firsttime = false
