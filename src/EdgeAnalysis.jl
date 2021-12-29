@@ -347,7 +347,7 @@ function processfluxes(sim::SystemSimulation,
         end
     end
 
-    return dydt,rts,frts,rrts,cs,corespeciesrates,charrate,edgespeciesrates,edgereactionrates,corespeciesrateratios,edgespeciesrateratios,corereactionrates,corespeciesconcentrations,corespeciesproductionrates,corespeciesconsumptionrates, 
+    return dydt,rts,frts,rrts,cs,corespeciesrates,charrate,edgespeciesrates,edgereactionrates,corespeciesrateratios,edgespeciesrateratios,corereactionrates,corespeciesconcentrations,corespeciesproductionrates,corespeciesconsumptionrates,corespeciesnetconsumptionrates
 end
 
 """
@@ -375,11 +375,11 @@ function processfluxes(sim::Simulation,corespcsinds,corerxninds,edgespcsinds,edg
         if any(d.rxnarray[:,i].>length(corespeciesconcentrations))
             continue
         end
+        flux = frts[i+index] - rrts[i+index]
         for j = 1:3
             if d.rxnarray[j,i] != 0
                 corespeciesconsumptionrates[d.rxnarray[j,i]] += frts[i]
                 corespeciesproductionrates[d.rxnarray[j,i]] += rrts[i]
-                flux = rrts[i+index] - frts[i+index]
                 if flux > 0
                     corespeciesnetconsumptionrates[d.rxnarray[j,i]] += flux
                 end
@@ -391,8 +391,7 @@ function processfluxes(sim::Simulation,corespcsinds,corerxninds,edgespcsinds,edg
             if d.rxnarray[j,i] != 0
                 corespeciesproductionrates[d.rxnarray[j,i]] += frts[i]
                 corespeciesconsumptionrates[d.rxnarray[j,i]] += rrts[i]
-                flux = rrts[i+index] - frts[i+index]
-                if flux > 0
+                if flux < 0
                     corespeciesnetconsumptionrates[d.rxnarray[j,i]] += flux
                 end
             else
@@ -401,7 +400,7 @@ function processfluxes(sim::Simulation,corespcsinds,corerxninds,edgespcsinds,edg
         end
     end
     
-    return dydt,rts,frts,rrts,cs,corespeciesrates,charrate,edgespeciesrates,edgereactionrates,corespeciesrateratios,edgespeciesrateratios,corereactionrates,corespeciesconcentrations,corespeciesproductionrates,corespeciesnetconsumptionrates
+    return dydt,rts,frts,rrts,cs,corespeciesrates,charrate,edgespeciesrates,edgereactionrates,corespeciesrateratios,edgespeciesrateratios,corereactionrates,corespeciesconcentrations,corespeciesproductionrates,corespeciesconsumptionrates,corespeciesnetconsumptionrates
 end
 
 export processfluxes
@@ -745,10 +744,14 @@ function identifyobjects!(sim,corespcsinds,corerxninds,edgespcsinds,
         for (i,obj) in enumerate(newobjects)
             val = newobjectvals[i]
             ind = newobjectinds[i]
-            if isa(obj, Species)
+            type = newobjecttype[i]
+            if isa(obj, Species) && type == "rr"
                 name = obj.name
                 @info "At time $t sec, species $name at rate ratio $val exceeded the minimum rate for moving to model core of $tolmovetocore"
-            elseif isa(obj,ElementaryReaction)
+            elseif isa(obj,ElementaryReaction) && type == "connecting"
+                rstr = getrxnstr(obj)
+                @info "at time $t sec, reaction $rstr at a connecting number of $val exceeded the threshold of $lossratiotolerance for moving to model core"
+            elseif isa(obj,ElementaryReaction) && type == "branching"
                 rstr = getrxnstr(obj)
                 @info "at time $t sec, reaction $rstr at a branching number of $val exceeded the threshold of 1 for moving to model core"
             end
