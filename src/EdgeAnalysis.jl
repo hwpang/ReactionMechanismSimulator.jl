@@ -194,7 +194,7 @@ function getkeyselectioninds(coreedgedomains,coreedgeinters,domains,inters)
             coretoedgespcmap[domains[i].indexes[j]] = coreedgedomains[i].indexes[j]
         end
         for (j,rxn) in enumerate(coreedgedomains[i].phase.reactions)
-            coreind = findfirst(isequal(rxn),domains[i].phase.reactions)
+            coreind = findfirst(x->rxn.reactants==x.reactants && rxn.products==x.products && rxn.kinetics==x.kinetics,domains[i].phase.reactions)
             if coreind === nothing
                 push!(edgerxninds,j+rxnindexedge)
             else
@@ -207,21 +207,31 @@ function getkeyselectioninds(coreedgedomains,coreedgeinters,domains,inters)
         rxnindexcore += length(domains[i].phase.reactions)
         rxnindexedge += length(coreedgedomains[i].phase.reactions)
 
-        indend = length(domains[i].phase.reactions)
-        reactantindices[:,ind:ind+indend-1] = domains[i].rxnarray[1:3,:]
-        productindices[:,ind:ind+indend-1] = domains[i].rxnarray[4:6,:]
+        indend = length(coreedgedomains[i].phase.reactions)
+        reactantindices[:,ind:ind+indend-1] = coreedgedomains[i].rxnarray[1:3,:]
+        productindices[:,ind:ind+indend-1] = coreedgedomains[i].rxnarray[4:6,:]
         ind += indend
     end
-        
+
     for i = 1:length(inters)
         if isa(inters[i],ReactiveInternalInterface)
             push!(corerxnrangearray,index:index+length(inters[i].reactions))
             push!(edgerxnrangearray,index+length(inters[i].reactions):index+length(coreedgeinters[i].reactions))
             index += length(coreedgeinters[i].phase.reactions)
-            
+            for (j,rxn) in enumerate(coreedgeinters[i].reactions)
+                coreind = findfirst(isequal(rxn),inters[i].phase.reactions)
+                if coreind === nothing
+                    push!(edgerxninds,j+rxnindexedge)
+                else
+                    coretoedgerxnmap[coreind+rxnindexcore] = j+rxnindexedge
+                    push!(corerxninds,j+rxnindexedge)
+                end
+            end
+            rxnindexcore += length(inters[i].reactions)
+            rxnindexedge += length(coreedgeinters[i].reactions)
             indend = length(inters[i].reactions)
-            reactantindices[:,ind:ind+indend] = inters[i].rxnarray[1:3,:]
-            productindices[:,ind:ind+indend] = inters[i].rxnarray[4:6,:]
+            reactantindices[:,ind:ind+indend] = coreedgeinters[i].rxnarray[1:3,:]
+            productindices[:,ind:ind+indend] = coreedgeinters[i].rxnarray[4:6,:]
             ind += indend
         end
     end
@@ -409,30 +419,30 @@ export processfluxes
 Calculate branching numbers for appropriate reactions for use in evaluating
 the branching criterion: 1.0 < branchfactor * max(branchingratio,branchingratiomax) * rateratio^branchingindex
 """
-function calcbranchingnumbers(sim,reactantinds,productinds,corespcsinds,corerxninds,edgereactionrates,corespeciesrateratios,
-        corespeciesconsumptionrates,branchfactor,branchingratiomax,branchingindex)
+function calcbranchingnumbers(sim,reactantinds,productinds,corespcsinds,corerxninds,edgerxninds,edgereactionrates,corespeciesrateratios,
+    corespeciesconsumptionrates,branchfactor,branchingratiomax,branchingindex)
     branchingnums = zeros(length(edgereactionrates))
-    for index in 1:length(edgereactionrates)
-        reactionrate = edgereactionrates[index]
-            
+    for ind in 1:length(edgereactionrates)
+        index = edgerxninds[ind]
+        reactionrate = edgereactionrates[ind]
         if reactionrate > 0
-            reactantside = reactantinds[:,index+length(corerxninds)]
-            productside = productinds[:,index+length(corerxninds)]
+            reactantside = reactantinds[:,index]
+            productside = productinds[:,index]
         else
-            reactantside = productinds[:,index+length(corerxninds)]
-            productside = reactantinds[:,index+length(corerxninds)]
+            reactantside = productinds[:,index]
+            productside = reactantinds[:,index]
         end
-            
+
         rade = [sim.species[i].radicalelectrons for i in productside if i != 0]
-            
+
         if maximum(rade) > 1
             continue
         end
-            
+
         for spcindex in reactantside
-            if spcindex == 0 
+            if spcindex == 0
                 continue
-            elseif spcindex < length(corespcsinds)
+            elseif spcindex in corespcsinds
                 if sim.species[spcindex].radicalelectrons != 1
                     continue
                 end
@@ -443,32 +453,33 @@ function calcbranchingnumbers(sim,reactantinds,productinds,corespcsinds,corerxni
                     if br > branchingratiomax
                         br = branchingratiomax
                     end
-                        
+
                     bnum = branchfactor * br * rr^branchingindex
-                        
-                    if bnum > branchingnums[index]
-                        branchingnums[index] = bnum
+
+                    if bnum > branchingnums[ind]
+                        branchingnums[ind] = bnum
                     end
                 end
             end
         end
     end
-   return branchingnums 
+    return branchingnums
 end
 
 export calcbranchingnumbers
 
-function calclossratios(sim,reactantinds,productinds,corespcsinds,corerxninds,edgereactionrates, corespeciesnetconsumptionrates)
+function calclossratios(sim,reactantinds,productinds,corespcsinds,corerxninds,edgerxninds,edgereactionrates,corespeciesnetconsumptionrates)
     lossratios = zeros(length(edgereactionrates))
-    for index in 1:length(edgereactionrates)
-        reactionrate = edgereactionrates[index]
+    for ind in 1:length(edgereactionrates)
+        index = edgerxninds[ind]
+        reactionrate = edgereactionrates[ind]
             
         if reactionrate > 0
-            reactantside = reactantinds[:,index+length(corerxninds)]
-            productside = productinds[:,index+length(corerxninds)]
+            reactantside = reactantinds[:,index]
+            productside = productinds[:,index]
         else
-            reactantside = productinds[:,index+length(corerxninds)]
-            productside = reactantinds[:,index+length(corerxninds)]
+            reactantside = productinds[:,index]
+            productside = reactantinds[:,index]
         end
             
         productrade = [sim.species[i].radicalelectrons for i in productside if i != 0]
@@ -480,7 +491,7 @@ function calclossratios(sim,reactantinds,productinds,corespcsinds,corerxninds,ed
             if productrade[1] == 0 && reactantrade[1] == 1 && reactantrade[2] == 1
                 HAbs_or_RRecom = true
             end
-        elseif length(reactantrade) == length(productrade)
+        elseif length(reactantrade) == length(productrade) && length(productrade) == 2
             if (0 in reactantrade && 1 in reactantrade) && (0 in productrade && 1 in productrade)
                 HAbs_or_RRecom = true
             end
@@ -493,7 +504,7 @@ function calclossratios(sim,reactantinds,productinds,corespcsinds,corerxninds,ed
         for spcindex in reactantside
             if spcindex == 0 
                 continue
-            elseif spcindex < length(corespcsinds)
+            elseif spcindex in corespcsinds
                 if sim.species[spcindex].radicalelectrons != 1
                     continue
                 end
@@ -504,8 +515,8 @@ function calclossratios(sim,reactantinds,productinds,corespcsinds,corerxninds,ed
                     lossratio = abs(reactionrate) / 1e-40
                 end
                         
-                if lossratio > lossratios[index]
-                    lossratios[index] = lossratio
+                if lossratio > lossratios[ind]
+                    lossratios[ind] = lossratio
                 end
             end
         end
@@ -601,11 +612,11 @@ function identifyobjects!(sim,corespcsinds,corerxninds,edgespcsinds,
     end
 
     if lossratiotolerance != 0.0 && !firsttime
-        lossratios = calclossratios(sim,reactantinds,productinds,corespcsinds,corerxninds,edgereactionrates,corespeciesnetconsumptionrates)
+        lossratios = calclossratios(sim,reactantinds,productinds,corespcsinds,corerxninds,edgerxninds,edgereactionrates,corespeciesnetconsumptionrates)
     end
     
     if branchfactor != 0.0 && !firsttime
-        branchingnums = calcbranchingnumbers(sim,reactantinds,productinds,corespcsinds,corerxninds,edgereactionrates,
+        branchingnums = calcbranchingnumbers(sim,reactantinds,productinds,corespcsinds,corerxninds,edgerxninds,edgereactionrates,
             corespeciesrateratios,corespeciesconsumptionrates,branchfactor,branchingratiomax,branchingindex)
     end
     
@@ -667,7 +678,7 @@ function identifyobjects!(sim,corespcsinds,corerxninds,edgespcsinds,
         for (i,ind) in enumerate(edgerxninds)
             lr = lossratios[i]
             if lr > lossratiotolerance
-                obj = sim.reactions[ind+numcorerxns]
+                obj = sim.reactions[ind]
                 if !(obj in newobjects || obj in invalidobjects)
                     push!(tempnewobjects,obj)
                     push!(tempnewobjectinds,ind)
@@ -677,14 +688,14 @@ function identifyobjects!(sim,corespcsinds,corerxninds,edgespcsinds,
             end
         end
         sortedinds = reverse(sortperm(tempnewobjectvals))
-        
+
         for q in sortedinds
             push!(newobjects,tempnewobjects[q])
             push!(newobjectinds,tempnewobjectinds[q])
             push!(newobjectvals,tempnewobjectvals[q])
             push!(newobjecttype,tempnewobjecttype[q])
         end
-        
+
         tempnewobjects = []
         tempnewobjectinds = Array{Int64,1}()
         tempnewobjectvals = Array{Float64,1}()
@@ -695,7 +706,7 @@ function identifyobjects!(sim,corespcsinds,corerxninds,edgespcsinds,
         for (i,ind) in enumerate(edgerxninds)
             bnum = branchingnums[i]
             if bnum > 1
-                obj = sim.reactions[ind+numcorerxns]
+                obj = sim.reactions[ind]
                 if !(obj in newobjects || obj in invalidobjects)
                     push!(tempnewobjects,obj)
                     push!(tempnewobjectinds,ind)
@@ -705,14 +716,14 @@ function identifyobjects!(sim,corespcsinds,corerxninds,edgespcsinds,
             end
         end
         sortedinds = reverse(sortperm(tempnewobjectvals))
-        
+
         for q in sortedinds
             push!(newobjects,tempnewobjects[q])
             push!(newobjectinds,tempnewobjectinds[q])
             push!(newobjectvals,tempnewobjectvals[q])
             push!(newobjecttype,tempnewobjecttype[q])
         end
-        
+
         tempnewobjects = []
         tempnewobjectinds = Array{Int64,1}()
         tempnewobjectvals = Array{Float64,1}()
