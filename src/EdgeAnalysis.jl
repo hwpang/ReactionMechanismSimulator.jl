@@ -671,7 +671,7 @@ function identifyobjects!(sim,corespcsinds,corerxninds,edgespcsinds,
                 if !(obj in newobjects || obj in invalidobjects)
                     push!(tempnewobjects,obj)
                     push!(tempnewobjectinds,ind)
-                    push!(tempnewobjectvals,bnum)
+                    push!(tempnewobjectvals,lr)
                     push!(tempnewobjecttype,"connecting")
                 end
             end
