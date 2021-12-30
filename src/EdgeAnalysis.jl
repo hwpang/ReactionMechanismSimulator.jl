@@ -304,7 +304,7 @@ function processfluxes(sim::SystemSimulation,
                     corespeciesproductionrates[d.rxnarray[j,i]] += frts[i+index]
                     corespeciesconsumptionrates[d.rxnarray[j,i]] += rrts[i+index]
                     if flux < 0
-                        corespeciesnetconsumptionrates[d.rxnarray[j,i]] += flux
+                        corespeciesnetconsumptionrates[d.rxnarray[j,i]] += abs(flux)
                     end
                 else
                     break
@@ -336,7 +336,7 @@ function processfluxes(sim::SystemSimulation,
                         corespeciesproductionrates[d.rxnarray[j,i]] += frts[i+index]
                         corespeciesconsumptionrates[d.rxnarray[j,i]] += rrts[i+index]
                         if flux < 0
-                            corespeciesnetconsumptionrates[d.rxnarray[j,i]] += flux
+                            corespeciesnetconsumptionrates[d.rxnarray[j,i]] += abs(flux)
                         end
                     else
                         break
@@ -375,7 +375,7 @@ function processfluxes(sim::Simulation,corespcsinds,corerxninds,edgespcsinds,edg
         if any(d.rxnarray[:,i].>length(corespeciesconcentrations))
             continue
         end
-        flux = frts[i+index] - rrts[i+index]
+        flux = frts[i] - rrts[i]
         for j = 1:3
             if d.rxnarray[j,i] != 0
                 corespeciesconsumptionrates[d.rxnarray[j,i]] += frts[i]
@@ -392,7 +392,7 @@ function processfluxes(sim::Simulation,corespcsinds,corerxninds,edgespcsinds,edg
                 corespeciesproductionrates[d.rxnarray[j,i]] += frts[i]
                 corespeciesconsumptionrates[d.rxnarray[j,i]] += rrts[i]
                 if flux < 0
-                    corespeciesnetconsumptionrates[d.rxnarray[j,i]] += flux
+                    corespeciesnetconsumptionrates[d.rxnarray[j,i]] += abs(flux)
                 end
             else
                 break
@@ -458,10 +458,6 @@ end
 
 export calcbranchingnumbers
 
-"""
-Calculate branching numbers for appropriate reactions for use in evaluating
-the branching criterion: 1.0 < branchfactor * max(branchingratio,branchingratiomax) * rateratio^branchingindex
-"""
 function calclossratios(sim,reactantinds,productinds,corespcsinds,corerxninds,edgereactionrates, corespeciesnetconsumptionrates)
     lossratios = zeros(length(edgereactionrates))
     for index in 1:length(edgereactionrates)
