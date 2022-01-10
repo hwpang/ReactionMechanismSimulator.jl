@@ -790,6 +790,9 @@ function identifyobjects!(sim,corespcsinds,corerxninds,edgespcsinds,
             end
         end
     end
+
+    @info "identifyobjects! output"
+    @info (terminated,interrupt,conversion)
     
     return (terminated,interrupt,conversion) 
 end
