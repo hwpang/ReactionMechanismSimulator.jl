@@ -574,7 +574,6 @@ function identifyobjects!(sim,corespcsinds,corerxninds,edgespcsinds,
     numcorerxns = length(corerxninds)
     invalidobjectsprintboolean = true
     terminated = false
-    conversion = 0.0
     
     (dydt,rts,frts,rrts,cs,corespeciesratse,charrate,edgespeciesrates,
     edgereactionrates,corespeciesrateratios,edgespeciesrateratios,
@@ -593,7 +592,7 @@ function identifyobjects!(sim,corespcsinds,corerxninds,edgespcsinds,
         name = sim.names[maxspeciesindex]
         @info "at time $t s, species $name was added to model core to avoid singularity"
         push!(invalidobjects,sim.species[maxspeciesindex])
-        return (false,true)
+        return (false,true,0.0)
     end
 
     if lossratiotolerance != 0.0 && !firsttime
