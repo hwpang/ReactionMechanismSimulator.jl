@@ -588,7 +588,6 @@ function identifyobjects!(sim,corespcsinds,corerxninds,edgespcsinds,
     numcorerxns = length(corerxninds)
     invalidobjectsprintboolean = true
     terminated = false
-    conversion = 0.0
     
     (dydt,rts,frts,rrts,cs,corespeciesratse,charrate,edgespeciesrates,
     edgereactionrates,corespeciesrateratios,edgespeciesrateratios,
