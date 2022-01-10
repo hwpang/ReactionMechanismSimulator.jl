@@ -637,6 +637,7 @@ function identifyobjects!(sim,corespcsinds,corerxninds,edgespcsinds,
     tempnewobjecttype = []
         
     interrupt = false
+    conversion = 0.0
         
     #movement of species to core based on rate ratios
         
