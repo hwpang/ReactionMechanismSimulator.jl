@@ -1717,6 +1717,9 @@ export calcthermo
             dydt[d.indexes[1]:d.indexes[2]] .-= inter.Vout(t)*ns/V
         end
     end
+    for ind in d.constantspeciesinds #make dydt zero for constant species
+        @inbounds dydt[ind] = 0.0
+    end
 end
 
 @inline function calcdomainderivatives!(d::Q,dydt::Z7,interfaces::Z12;t::Z10,T::Z4,P::Z9,Us::Array{Z,1},Hs::Array{Z11,1},V::Z2,C::Z3,ns::Z5,N::Z6,Cvave::Z8) where {Q<:ConstantTPDomain,Z12,Z11,Z10,Z9,Z8<:Real,Z7,W<:IdealGas,Y<:Integer,Z6,Z,Z2,Z3,Z4,Z5}
@@ -1757,9 +1760,9 @@ end
         if isa(inter,Inlet) && d == inter.domain
             flow = inter.F(t)
             dydt[d.indexes[1]:d.indexes[2]] .+= inter.y.*flow
-            dTdt = flow*(inter.H - dot(Us,ns)/N)/(N*Cvave)
-            dydt[d.indexes[3]] += dTdt
-            dydt[d.indexes[4]] += flow*R*T/V + P/T*dTdt
+            # dTdt = flow*(inter.H - dot(Us,ns)/N)/(N*Cvave)
+            # dydt[d.indexes[3]] += dTdt
+            # dydt[d.indexes[4]] += flow*R*T/V + P/T*dTdt
         elseif isa(inter,Outlet) && d == inter.domain
             flow = inter.F(t)
             dydt[d.indexes[1]:d.indexes[2]] .-= flow.*ns./N
@@ -1784,10 +1787,13 @@ end
             dydt[d.indexes[4]] -= flow*R*T/V + P/T*dTdt
         elseif isa(inter,VolumetricFlowRateOutlet) && d == inter.domain
             dydt[d.indexes[1]:d.indexes[2]] .-= inter.Vout(t)*ns/V
-            dTdt = (P*inter.Vout(t))/(N*Cvave)
-            dydt[d.indexes[3]] -= dTdt
-            dydt[d.indexes[4]] -= inter.Vout(t)*P/V + P/T*dTdt
+            # dTdt = (P*inter.Vout(t))/(N*Cvave)
+            # dydt[d.indexes[3]] -= dTdt
+            # dydt[d.indexes[4]] -= inter.Vout(t)*P/V + P/T*dTdt
         end
+    end
+    for ind in d.constantspeciesinds #make dydt zero for constant species
+        @inbounds dydt[ind] = 0.0
     end
 end
 

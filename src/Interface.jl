@@ -176,13 +176,19 @@ function evaluate(vl::VaporLiquidMassTransferInternalInterfaceConstantT,dydt,V1,
         flow = sum(evap)
         molefractions = evap./flow
         dTdt = flow*(dot(vl.Hs,molefractions) - dot(Us,ns)/N)/(N*Cvave)
-        dydt[vl.domain1.indexes[3]] += dTdt
-        dydt[vl.domain1.indexes[4]] += flow*R*T/V + P/T*dTdt
+        # dydt[vl.domain1.indexes[3]] += dTdt
+        # dydt[vl.domain1.indexes[4]] += flow*R*T/V + P/T*dTdt
 
         flow = sum(cond)
         dTdt = (P*V/N*flow)/(N*Cvave)
-        dydt[vl.domain1.indexes[3]] -= dTdt
-        dydt[vl.domain1.indexes[4]] -= flow*R*T/V + P/T*dTdt
+        # dydt[vl.domain1.indexes[3]] -= dTdt
+        # dydt[vl.domain1.indexes[4]] -= flow*R*T/V + P/T*dTdt
+    end
+    for ind in vl.domain1.constantspeciesinds
+        dydt[ind] = 0.0
+    end
+    for ind in vl.domain2.constantspeciesinds
+        dydt[ind] = 0.0
     end
 end
 
@@ -205,13 +211,19 @@ function evaluate(vl::VaporLiquidMassTransferInternalInterfaceConstantT,dydt,V1,
         flow = sum(evap)
         molefractions = evap./flow
         dTdt = flow*(dot(vl.Hs,molefractions) - dot(Us,ns)/N)/(N*Cvave)
-        dydt[vl.domain1.indexes[3]] += dTdt
-        dydt[vl.domain1.indexes[4]] += flow*R*T/V + P/T*dTdt
+        # dydt[vl.domain1.indexes[3]] += dTdt
+        # dydt[vl.domain1.indexes[4]] += flow*R*T/V + P/T*dTdt
 
         flow = sum(cond)
         dTdt = (P*V/N*flow)/(N*Cvave)
-        dydt[vl.domain1.indexes[3]] -= dTdt
-        dydt[vl.domain1.indexes[4]] -= flow*R*T/V + P/T*dTdt
+        # dydt[vl.domain1.indexes[3]] -= dTdt
+        # dydt[vl.domain1.indexes[4]] -= flow*R*T/V + P/T*dTdt
+    end
+    for ind in vl.domain1.constantspeciesinds
+        dydt[ind] = 0.0
+    end
+    for ind in vl.domain2.constantspeciesinds
+        dydt[ind] = 0.0
     end
 end
 export evaluate
