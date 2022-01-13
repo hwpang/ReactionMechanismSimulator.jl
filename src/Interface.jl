@@ -159,11 +159,11 @@ end
 
 function evaluate(vl::VaporLiquidMassTransferInternalInterfaceConstantT,dydt,V1,V2,T1,T2,N1,N2,P1,P2,Cvave1,Cvave2,ns1,ns2,Us1,Us2,cstot,p::W) where {W<:DiffEqBase.NullParameters}
     kLAs, kHs = getkLAkHs(vl,T1,T2)
-    @views @inbounds @fastmath evap = kLAs.*cstot[vl.masstransferarray[1,:]]*V2
-    @views @inbounds @fastmath cond = kLAs./kHs.*cstot[vl.masstransferarray[4,:]]*V1
+    @views @inbounds @fastmath evap = kLAs.*cstot[vl.masstransferarray[4,:]]*V2 
+    @views @inbounds @fastmath cond = kLAs./kHs.*cstot[vl.masstransferarray[1,:]]*V2
     flux = (evap .- cond)
-    @views @inbounds @fastmath dydt[vl.masstransferarray[1,:]] .-= flux
-    @views @inbounds @fastmath dydt[vl.masstransferarray[4,:]] .+= flux
+    @views @inbounds @fastmath dydt[vl.masstransferarray[1,:]] .+= flux
+    @views @inbounds @fastmath dydt[vl.masstransferarray[4,:]] .-= flux
 
     if isa(vl.domain1,ConstantVDomain)
         N = N1
@@ -188,11 +188,11 @@ end
 
 function evaluate(vl::VaporLiquidMassTransferInternalInterfaceConstantT,dydt,V1,V2,T1,T2,N1,N2,P1,P2,Cvave1,Cvave2,ns1,ns2,Us1,Us2,cstot,p)
     kLAs, kHs = getkLAkHs(vl,T1,T2)
-    @views @inbounds @fastmath evap = kLAs.*cstot[vl.masstransferarray[1,:]]*V2
-    @views @inbounds @fastmath cond = kLAs./kHs.*cstot[vl.masstransferarray[4,:]]*V1
+    @views @inbounds @fastmath evap = kLAs.*cstot[vl.masstransferarray[4,:]]*V2 
+    @views @inbounds @fastmath cond = kLAs./kHs.*cstot[vl.masstransferarray[1,:]]*V2
     flux = (evap .- cond)
-    @views @inbounds @fastmath dydt[vl.masstransferarray[1,:]] .-= flux
-    @views @inbounds @fastmath dydt[vl.masstransferarray[4,:]] .+= flux
+    @views @inbounds @fastmath dydt[vl.masstransferarray[1,:]] .+= flux
+    @views @inbounds @fastmath dydt[vl.masstransferarray[4,:]] .-= flux
 
     if isa(vl.domain1,ConstantVDomain)
         N = N1
@@ -360,8 +360,8 @@ function getinterfacemasstransferinds(domain1,domain2,masstransferspcnames)
     for (i,name) in enumerate(masstransferspcnames)
         ind1 = findfirst(isequal(name),spcnames1)
         ind2 = findfirst(isequal(name),spcnames2)
-        indices[1,i] = domain2.indexes[1]-1+ind2
-        indices[4,i] = domain1.indexes[1]-1+ind1
+        indices[4,i] = domain2.indexes[1]-1+ind2
+        indices[1,i] = domain1.indexes[1]-1+ind1
     end
     return indices
 end
