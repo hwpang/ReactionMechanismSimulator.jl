@@ -680,6 +680,8 @@ function identifyobjects!(sim,corespcsinds,corerxninds,edgespcsinds,
             if lr > lossratiotolerance
                 obj = sim.reactions[ind]
                 if !(obj in newobjects || obj in invalidobjects)
+                    @info "edgerxninds for connecting"
+                    @info ind
                     push!(tempnewobjects,obj)
                     push!(tempnewobjectinds,ind)
                     push!(tempnewobjectvals,lr)
@@ -804,9 +806,6 @@ function identifyobjects!(sim,corespcsinds,corerxninds,edgespcsinds,
             end
         end
     end
-
-    @info "identifyobjects! output"
-    @info (terminated,interrupt,conversion)
     
     return (terminated,interrupt,conversion) 
 end
