@@ -247,7 +247,7 @@ function getkeyselectioninds(coreedgedomain::AbstractDomain,coreedgeinters,domai
     corerxninds = []
     edgerxninds = []
     coretoedgerxnmap = Dict{Int64,Int64}()
-    for (j,rxn) in coreedgedomain.phase.reactions
+    for (j,rxn) in enumerate(coreedgedomain.phase.reactions)
         coreind = findfirst(x->rxn.reactants==x.reactants && rxn.products==x.products && rxn.kinetics==x.kinetics,domain.phase.reactions)
         if coreind === nothing
             push!(edgerxninds,j)
