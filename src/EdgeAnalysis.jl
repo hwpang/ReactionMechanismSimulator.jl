@@ -244,12 +244,22 @@ Precalculate important indices and maps for use in edge analysis
 function getkeyselectioninds(coreedgedomain::AbstractDomain,coreedgeinters,domain,inters)
     corespcsinds = 1:length(domain.phase.species)
     edgespcsinds = length(domain.phase.species)+1:length(coreedgedomain.phase.species)
-    corerxninds = 1:length(domain.phase.reactions)
-    edgerxninds = length(domain.phase.reactions)+1:length(coreedgedomain.phase.reactions)
+    corerxninds = []
+    edgerxninds = []
+    coretoedgerxnmap = Dict{Int64,Int64}()
+    for (j,rxn) in coreedgedomain.phase.reactions
+        coreind = findfirst(x->rxn.reactants==x.reactants && rxn.products==x.products && rxn.kinetics==x.kinetics,domain.phase.reactions)
+        if coreind === nothing
+            push!(edgerxninds,j)
+        else
+            coretoedgerxnmap[coreind] = j
+            push!(corerxninds,j)
+        end
+    end
+
     reactantindices = coreedgedomain.rxnarray[1:3,:]
     productindices = coreedgedomain.rxnarray[4:6,:]
     coretoedgespcmap = Dict([i=>findfirst(isequal(spc),coreedgedomain.phase.species) for (i,spc) in enumerate(domain.phase.species)])
-    coretoedgerxnmap = Dict([i=>findfirst(isequal(rxn),coreedgedomain.phase.reactions) for (i,rxn) in enumerate(domain.phase.reactions)])
     for j = 3:length(domain.indexes)
         coretoedgespcmap[domain.indexes[j]] = coreedgedomain.indexes[j]
     end
