@@ -524,7 +524,7 @@ function calclossratios(sim,reactantinds,productinds,corespcsinds,corerxninds,ed
    return lossratios
 end
 
-export calcbranchingnumbers
+export calclossratios
 
 """
 determine species pairings that are concentrated enough that they should be reacted
