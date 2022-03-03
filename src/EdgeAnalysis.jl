@@ -289,7 +289,7 @@ function processfluxes(sim::SystemSimulation,
     corespeciesconsumptionrates = zeros(length(corespeciesconcentrations))
     corespeciesproductionrates = zeros(length(corespeciesconcentrations))
     corespeciesnetconsumptionrates = zeros(length(corespeciesconcentrations))
-    
+    corespeciesnetterminationrates = zeros(length(corespeciesconcentrations))
     #process core species consumption and production rates
     index = 1
     for d in getfield.(sim.sims,:domain)
@@ -304,6 +304,9 @@ function processfluxes(sim::SystemSimulation,
                     corespeciesproductionrates[d.rxnarray[j,i]] += rrts[i+index]
                     if flux > 0
                         corespeciesnetconsumptionrates[d.rxnarray[j,i]] += flux
+                        if d.phase.reactions[i].radicalchange < 0
+                            corespeciesnetterminationrates[d.rxnarray[j,i]] += flux
+                        end
                     end
                 else
                     break
@@ -315,6 +318,9 @@ function processfluxes(sim::SystemSimulation,
                     corespeciesconsumptionrates[d.rxnarray[j,i]] += rrts[i+index]
                     if flux < 0
                         corespeciesnetconsumptionrates[d.rxnarray[j,i]] += abs(flux)
+                        if d.phase.reactions[i].radicalchange > 0
+                            corespeciesnetterminationrates[d.rxnarray[j,i]] += abs(flux)
+                        end
                     end
                 else
                     break
@@ -336,6 +342,9 @@ function processfluxes(sim::SystemSimulation,
                         corespeciesproductionrates[d.rxnarray[j,i]] += rrts[i+index]
                         if flux > 0
                             corespeciesnetconsumptionrates[d.rxnarray[j,i]] += flux
+                            if d.phase.reactions[i].radicalchange < 0
+                                corespeciesnetterminationrates[d.rxnarray[j,i]] += flux
+                            end
                         end
                     else
                         break
@@ -347,6 +356,9 @@ function processfluxes(sim::SystemSimulation,
                         corespeciesconsumptionrates[d.rxnarray[j,i]] += rrts[i+index]
                         if flux < 0
                             corespeciesnetconsumptionrates[d.rxnarray[j,i]] += abs(flux)
+                            if d.phase.reactions[i].radicalchange > 0
+                                corespeciesnetterminationrates[d.rxnarray[j,i]] += abs(flux)
+                            end
                         end
                     else
                         break
@@ -357,7 +369,7 @@ function processfluxes(sim::SystemSimulation,
         end
     end
 
-    return dydt,rts,frts,rrts,cs,corespeciesrates,charrate,edgespeciesrates,edgereactionrates,corespeciesrateratios,edgespeciesrateratios,corereactionrates,corespeciesconcentrations,corespeciesproductionrates,corespeciesconsumptionrates,corespeciesnetconsumptionrates
+    return dydt,rts,frts,rrts,cs,corespeciesrates,charrate,edgespeciesrates,edgereactionrates,corespeciesrateratios,edgespeciesrateratios,corereactionrates,corespeciesconcentrations,corespeciesproductionrates,corespeciesconsumptionrates,corespeciesnetconsumptionrates,corespeciesnetterminationrates
 end
 
 """
@@ -378,6 +390,7 @@ function processfluxes(sim::Simulation,corespcsinds,corerxninds,edgespcsinds,edg
     corespeciesconsumptionrates = zeros(length(corespeciesconcentrations))
     corespeciesproductionrates = zeros(length(corespeciesconcentrations))
     corespeciesnetconsumptionrates = zeros(length(corespeciesconcentrations))
+    corespeciesnetterminationrates = zeros(length(corespeciesconcentrations))
     
     #process core species consumption and production rates
     d = sim.domain
@@ -392,6 +405,9 @@ function processfluxes(sim::Simulation,corespcsinds,corerxninds,edgespcsinds,edg
                 corespeciesproductionrates[d.rxnarray[j,i]] += rrts[i]
                 if flux > 0
                     corespeciesnetconsumptionrates[d.rxnarray[j,i]] += flux
+                    if d.phase.reactions[i].radicalchange < 0
+                        corespeciesnetterminationrates[d.rxnarray[j,i]] += flux
+                    end
                 end
             else
                 break
@@ -403,6 +419,9 @@ function processfluxes(sim::Simulation,corespcsinds,corerxninds,edgespcsinds,edg
                 corespeciesconsumptionrates[d.rxnarray[j,i]] += rrts[i]
                 if flux < 0
                     corespeciesnetconsumptionrates[d.rxnarray[j,i]] += abs(flux)
+                    if d.phase.reactions[i].radicalchange > 0
+                        corespeciesnetterminationrates[d.rxnarray[j,i]] += abs(flux)
+                    end
                 end
             else
                 break
@@ -410,7 +429,7 @@ function processfluxes(sim::Simulation,corespcsinds,corerxninds,edgespcsinds,edg
         end
     end
     
-    return dydt,rts,frts,rrts,cs,corespeciesrates,charrate,edgespeciesrates,edgereactionrates,corespeciesrateratios,edgespeciesrateratios,corereactionrates,corespeciesconcentrations,corespeciesproductionrates,corespeciesconsumptionrates,corespeciesnetconsumptionrates
+    return dydt,rts,frts,rrts,cs,corespeciesrates,charrate,edgespeciesrates,edgereactionrates,corespeciesrateratios,edgespeciesrateratios,corereactionrates,corespeciesconcentrations,corespeciesproductionrates,corespeciesconsumptionrates,corespeciesnetconsumptionrates,corespeciesnetterminationrates
 end
 
 export processfluxes
@@ -468,7 +487,7 @@ end
 
 export calcbranchingnumbers
 
-function calclossratios(sim,reactantinds,productinds,corespcsinds,corerxninds,edgerxninds,edgereactionrates,corespeciesnetconsumptionrates)
+function calclossratios(sim,reactantinds,productinds,corespcsinds,corerxninds,edgerxninds,edgereactionrates,corespeciesnetconsumptionrates,corespeciesnetterminationrates)
     lossratios = zeros(length(edgereactionrates))
     for ind in 1:length(edgereactionrates)
         index = edgerxninds[ind]
@@ -485,19 +504,20 @@ function calclossratios(sim,reactantinds,productinds,corespcsinds,corerxninds,ed
         productrade = [sim.species[i].radicalelectrons for i in productside if i != 0]
         reactantrade = [sim.species[i].radicalelectrons for i in reactantside if i != 0]
             
-        HAbs_or_RRecom = false
+        HAbs = false
+        RRecom = false
 
         if length(productrade) == 1 && length(reactantrade) == 2
             if productrade[1] == 0 && reactantrade[1] == 1 && reactantrade[2] == 1
-                HAbs_or_RRecom = true
+                RRecom = true
             end
         elseif length(reactantrade) == length(productrade) && length(productrade) == 2
             if (0 in reactantrade && 1 in reactantrade) && (0 in productrade && 1 in productrade)
-                HAbs_or_RRecom = true
+                HAbs = true
             end
         end
 
-        if !HAbs_or_RRecom
+        if !(HAbs || RRecom)
             continue
         end
             
@@ -508,11 +528,23 @@ function calclossratios(sim,reactantinds,productinds,corespcsinds,corerxninds,ed
                 if sim.species[spcindex].radicalelectrons != 1
                     continue
                 end
-                consumption = corespeciesnetconsumptionrates[spcindex]
-                if consumption != 0.0
-                    lossratio = abs(reactionrate) / consumption
-                else
-                    lossratio = abs(reactionrate) / 1e-40
+
+                if HAbs
+                    consumption = corespeciesnetconsumptionrates[spcindex]
+                    if consumption != 0.0
+                        lossratio = abs(reactionrate) / consumption
+                    else
+                        lossratio = abs(reactionrate) / 1e-40
+                    end
+                end
+
+                if RRecom
+                    termination = corespeciesnetterminationrates[spcindex]
+                    if termination != 0.0
+                        lossratio = abs(reactionrate) / termination
+                    else
+                        lossratio = abs(reactionrate) / 1e-40
+                    end
                 end
                         
                 if lossratio > lossratios[ind]
@@ -592,7 +624,7 @@ function identifyobjects!(sim,corespcsinds,corerxninds,edgespcsinds,
     (dydt,rts,frts,rrts,cs,corespeciesratse,charrate,edgespeciesrates,
     edgereactionrates,corespeciesrateratios,edgespeciesrateratios,
     corereactionrates,corespeciesconcentrations,corespeciesproductionrates,
-    corespeciesconsumptionrates, corespeciesnetconsumptionrates) = processfluxes(sim,corespcsinds,corerxninds,edgespcsinds,edgerxninds)
+    corespeciesconsumptionrates, corespeciesnetconsumptionrates,corespeciesnetterminationrates) = processfluxes(sim,corespcsinds,corerxninds,edgespcsinds,edgerxninds)
     
     for i = 1:length(edgespeciesrateratios)
         if edgespeciesrateratios[i] > maxedgespeciesrateratios[i]
@@ -611,7 +643,7 @@ function identifyobjects!(sim,corespcsinds,corerxninds,edgespcsinds,
     end
 
     if lossratiotolerance != 0.0 && !firsttime
-        lossratios = calclossratios(sim,reactantinds,productinds,corespcsinds,corerxninds,edgerxninds,edgereactionrates,corespeciesnetconsumptionrates)
+        lossratios = calclossratios(sim,reactantinds,productinds,corespcsinds,corerxninds,edgerxninds,edgereactionrates,corespeciesnetconsumptionrates,corespeciesnetterminationrates)
     end
     
     if branchfactor != 0.0 && !firsttime
