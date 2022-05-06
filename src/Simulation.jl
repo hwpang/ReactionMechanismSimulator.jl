@@ -2,6 +2,7 @@ using DiffEqBase
 import DiffEqBase: AbstractODESolution, HermiteInterpolation,AbstractDiffEqInterpolation
 using DiffEqSensitivity
 using ForwardDiff
+using DiffEqBase.PreallocationTools
 
 abstract type AbstractSimulation end
 export AbstractSimulation
@@ -32,6 +33,51 @@ function Simulation(sol::Q,domain::W,interfaces=[],p=nothing) where {Q<:Abstract
         p = domain.p
     end
     return Simulation(sol,domain,interfaces,names,F,Ns,domain.phase.species,domain.phase.reactions,p)
+end
+
+function Simulation(sol::Q,domain::W,reducedmodelmappings::ReducedModelMappings,interfaces=[],p=nothing) where {Q<:AbstractODESolution,W<:AbstractDomain} 
+
+    function unlumpsol(t::tt,sol::Q,domain::W,reducedmodelmappings::ReducedModelMappings,reducedmodelcache::ReducedModelCache,interfaces=[],p=nothing) where {tt<:Real,Q<:AbstractODESolution,W<:AbstractDomain}
+        
+        yunlumped = zeros(length(sol(0))+length(reducedmodelmappings.qssindexes)-length(reducedmodelmappings.lumpedgroupmapping)+length(reducedmodelmappings.lumpedindexes))
+        y = sol(t)
+
+        qssc = get_tmp(reducedmodelcache.qssc,first(y)*t) .= 0.0
+
+        @inbounds @views yunlumped[reducedmodelmappings.reducedindexes] .= y[1:end-length(domain.thermovariabledict)-length(reducedmodelmappings.lumpedgroupmapping)]
+        for (i,group) in enumerate(reducedmodelmappings.lumpedgroupmapping)
+            for (index,weight) in group
+                @inbounds yunlumped[index] = weight * y[length(reducedmodelmappings.reducedindexes)+i]
+            end
+        end
+        @inbounds @views yunlumped[end-length(domain.thermovariabledict)+1:end] .= y[end-length(domain.thermovariabledict)+1:end]
+
+        ns,cs,T,P,V,C,N,mu,kfs,krevs,Hs,Us,Gs,diffs,Cvave,cpdivR,phi = calcthermo(domain,yunlumped,t,p)
+
+        reducedmodelmappings.qssc!(qssc,cs,kfs,krevs)
+        @inbounds yunlumped[reducedmodelmappings.qssindexes] .= qssc .* V
+        return yunlumped
+    end
+
+    qssc = dualcache(zeros(length(reducedmodelmappings.qssindexes)))
+    reducedmodelcache = ReducedModelCache(nothing,nothing,qssc)
+
+    unlumpedsol(t::T) where {T<:Real} = unlumpsol(t,sol,domain,reducedmodelmappings,reducedmodelcache,interfaces,p)
+
+    species_range = 1:(length(reducedmodelmappings.reducedindexes)+length(reducedmodelmappings.lumpedgroupmapping))
+    names = getfield.(domain.phase.species,:name)
+    Ns = sum(hcat(sol.interp.u...)[species_range,:],dims=1)
+    if hasproperty(sol.interp,:du)
+        Nderivs = sum(hcat(sol.interp.du...)[species_range,:],dims=1)
+    else
+        Nderivs = sum(hcat([sol(t,Val{1}) for t in sol.t]...)[species_range,:],dims=1)
+    end
+    N = HermiteInterpolation(sol.interp.t,Ns,Nderivs)
+    F(t::T) where {T<:Real} = N(t,nothing,Val{0},sol.prob.p,:left)
+    if p === nothing
+        p = domain.p
+    end
+    return Simulation(sol,domain,interfaces,names,F,Ns,domain.phase.species,domain.phase.reactions,p), unlumpedsol
 end
 
 export Simulation
