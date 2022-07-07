@@ -36,6 +36,8 @@ function getpairs(rxn::T) where {T<:AbstractReaction}
             return [ [rxn.reactants[1].name,rxn.products[1].name ],  [rxn.reactants[1].name,rxn.products[2].name ]]
         elseif length(rxn.products) == 3
             return [ [rxn.reactants[1].name,rxn.products[1].name ], [rxn.reactants[1].name,rxn.products[2].name ], [rxn.reactants[1].name,rxn.products[3].name ]]
+        elseif length(rxn.products) == 4
+            return [ [rxn.reactants[1].name,rxn.products[1].name ], [rxn.reactants[1].name,rxn.products[2].name ], [rxn.reactants[1].name,rxn.products[3].name ], [rxn.reactants[1].name,rxn.products[4].name ]] 
         end
     elseif length(rxn.reactants) == 2
         if length(rxn.products) == 1
