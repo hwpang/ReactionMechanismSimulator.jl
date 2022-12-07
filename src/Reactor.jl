@@ -26,8 +26,8 @@ function Reactor(domain::T,y0::Array{T1,1},tspan::Tuple,interfaces::Z=[];p::X=Sc
     jacyforwarddiff!(J::Q2,y::T,p::V,t::Q) where {Q2,T,Q,V} = jacobianyforwarddiff!(J,y,p,t,domain,interfaces,nothing)
     jacp!(J::Q2,y::T,p::V,t::Q) where {Q2,T,Q,V} = jacobianp!(J,y,p,t,domain,interfaces,nothing)
     jacpforwarddiff!(J::Q2,y::T,p::V,t::Q) where {Q2,T,Q,V} = jacobianpforwarddiff!(J,y,p,t,domain,interfaces,nothing)
-    
-    psetupsundials(p::T1, t::T2, u::T3, du::T4, jok::Bool, jcurPtr::T5, gamma::T6) where {T1,T2,T3,T4,T5,T6} = _psetupsundials(p, t, u, du, jok, jcurPtr, gamma, jacy!, W::SparseMatrixCSC{Float64, Int64}, preccache::Base.RefValue{IncompleteLU.ILUFactorization{Float64, Int64}}, tau::Float64)
+
+    psetupsundials(p::T1, t::T2, u::T3, du::T4, jok::Bool, jcurPtr::T5, gamma::T6) where {T1,T2,T3,T4,T5,T6} = _psetupsundials(p, t, u, du, jok, jcurPtr, gamma, jacy!, W::SparseMatrixCSC{Float64, Int64}, preccache::Base.RefValue{IncompleteLU.ILUFactorization{Float64, Int64}}, tau::Float64)    
     precsundials(z::T1, r::T2, p::T3, t::T4, y::T5, fy::T6, gamma::T7, delta::T8, lr::T9) where {T1,T2,T3,T4,T5,T6,T7,T8,T9} = _precsundials(z, r, p, t, y, fy, gamma, delta, lr, preccache)
     precsjulia(W::T1,du::T2,u::T3,p::T4,t::T5,newW::T6,Plprev::T7,Prprev::T8,solverdata::T9) where {T1,T2,T3,T4,T5,T6,T7,T8,T9} =  _precsjulia(W,du,u,p,t,newW,Plprev,Prprev,solverdata,tau)
     
@@ -61,7 +61,8 @@ function Reactor(domain::T,y0::Array{T1,1},tspan::Tuple,interfaces::Z=[];p::X=Sc
         recsolver = Sundials.CVODE_BDF(linear_solver=:GMRES)
     else
         ode = ODEProblem(odefcn,y0,tspan,p)
-        if sparsity > 0.8 #empirical threshold to use preconditioner
+        #empirical threshold to use preconditioner
+        if sparsity > 0.8  && domain isa Union{ConstantTPDomain,ConstantVDomain,ConstantPDomain,ParametrizedTPDomain,ParametrizedVDomain,ParametrizedPDomain,ConstantTVDomain,ParametrizedTConstantVDomain,ConstantTAPhiDomain}
             recsolver  = Sundials.CVODE_BDF(linear_solver=:GMRES,prec=precsundials,psetup=psetupsundials,prec_side=1)
         else
             recsolver  = Sundials.CVODE_BDF()
@@ -102,6 +103,19 @@ function Reactor(domains::T,y0s::W1,tspan::W2,interfaces::Z=Tuple(),ps::X=SciMLB
         end
         for i in 1:length(domain.constantspeciesinds)
             domain.constantspeciesinds[i] += k-1
+        end
+        for (thermovar,ind) in domain.thermovariabledict
+            domain.thermovariabledict[thermovar] += k-1
+        end
+        if isa(domain,ConstantTrhoDomain)
+            for i = 1:size(domain.rxnfluxarray)[1], j = 1:size(domain.rxnfluxarray)[2]
+                if domain.rxnfluxarray[i,j] != 0
+                    domain.rxnfluxarray[i,j] += k-1
+                end
+            end
+            for i in 1:length(domain.solidindexes)
+                domain.solidindexes[i] += k-1
+            end
         end
         domain.indexes[1] = k
         k += Nspcs
@@ -471,6 +485,53 @@ export getrates
     end
 end
 
+function addreactionratecontributions!(dydt::Q,rxnfluxarray::Array{W2,2},rxnarray::Array{Int64,2},cs::W,kfs::Z,krevs::Y,massindex::Int64,Mws::Array{Float64,1},solidindexes::Array{Int64,1}) where {Q,Z,Y,T,W,W2}
+    (numspcs,numrxns) = size(rxnfluxarray)
+    half = Int(numspcs/2)
+    for i = 1:numrxns
+
+        fR = 0
+        if rxnarray[1,i] != 0
+            fR = kfs[i]*cs[rxnarray[1,i]]
+            for j = 2:4
+                if rxnarray[j,i] != 0
+                    @fastmath fR *= cs[rxnarray[j,i]]
+                end
+            end
+        end
+
+        rR = 0
+        if rxnarray[5,i] !=0
+            rR = krevs[i]*cs[rxnarray[5,i]]
+            for j = 6:8
+                if rxnarray[j,i] != 0
+                    @fastmath rR *= cs[rxnarray[j,i]]
+                end
+            end
+        end
+
+        @fastmath R = fR - rR
+
+        for j = 1:half
+            if rxnfluxarray[j,i] != 0
+                @fastmath dydt[rxnfluxarray[j,i]] -= R
+                if !(rxnfluxarray[j,i] in solidindexes)
+                    dydt[massindex] += R * Mws[rxnfluxarray[j,i]]
+                end
+            end
+        end
+
+        for j = half+1:numspcs
+            if rxnfluxarray[j,i] != 0
+                @fastmath dydt[rxnfluxarray[j,i]] += R
+                if !(rxnfluxarray[j,i] in solidindexes)
+                    dydt[massindex] -= R * Mws[rxnfluxarray[j,i]]
+                end
+            end
+        end
+    end
+end
+
 @inline function addreactionratecontributions!(dydt::Q,rarray::Array{W2,2},cs::W,kfs::Z,krevs::Y,V) where {Q,Z,Y,T,W,W2}
     @inbounds @simd for i = 1:size(rarray)[2]
         if @inbounds rarray[2,i] == 0
@@ -576,9 +637,25 @@ export addreactionratecontributionsforwardreverse!
     calcdomainderivatives!(domain,dydt,interfaces;t=t,T=T,P=P,Us=Us,Hs=Hs,V=V,C=C,ns=ns,N=N,Cvave=Cvave)
     return dydt
 end
+
+function dydtreactor!(dydt::RC,y::U,t::Z,domain::ConstantTrhoDomain{W,Y},interfaces::B;p::RV=SciMLBase.NullParameters(),sensitivity::Bool=true) where {RC,RV,B<:AbstractArray,Z<:Real,U,J<:Integer,W<:IdealDiluteSolution,Y<:Integer}
+    dydt .= 0.0
+    massindex = domain.indexes[3]
+    ns,cs,T,P,V,C,N,mu,kfs,krevs,Hs,Us,Gs,diffs,Cvave,cpdivR = calcthermo(domain,y,t,p)
+    addreactionratecontributions!(dydt,domain.rxnfluxarray,domain.rxnarray,cs,kfs,krevs,massindex,domain.Mws,domain.solidindexes)
+    if V/domain.A < domain.diffusionlength
+        dydt .*= V
+    else
+        dydt .*= domain.diffusionlength*domain.A
+    end
+    calcdomainderivatives!(domain,dydt,interfaces;t=t,T=T,P=P,Us=Us,Hs=Hs,V=V,C=C,ns=ns,N=N,Cvave=Cvave)
+    return dydt
+end
+
 @inline function dydtreactor!(dydt::RC,y::U,t::Z,domains::Q,interfaces::B;p::RV=SciMLBase.NullParameters(),sensitivity::Bool=true) where {RC,RV,B,Z,U,Q<:Tuple}    
     cstot = similar(y)
     cstot .= 0.0
+    Mwstot = zeros(length(y))
     dydt .= 0.0
     domain = domains[1]
     ns,cs,T,P,V,C,N,mu,kfs,krevs,Hs,Us,Gs,diffs,Cvave,cpdivR,phi = calcthermo(domain,y,t,p)
@@ -617,24 +694,51 @@ end
     vcpdivR[1] = cpdivR
     vphi = Array{Any,1}(undef,length(domains))
     vphi[1] = phi
-    addreactionratecontributions!(dydt,domain.rxnarray,cstot,kfs,krevs)
-    @views dydt[domain.indexes[1]:domain.indexes[2]] .*= V
+    if isa(domain,ConstantTrhoDomain)
+        Mwstot[domain.indexes[1]:domain.indexes[2]] .= domain.Mws
+        addreactionratecontributions!(dydt,domain.rxnfluxarray,domain.rxnarray,cstot,kfs,krevs,domain.indexes[3],Mwstot,domain.solidindexes)
+        if V/domain.A < domain.diffusionlength
+            @views dydt[domain.indexes[1]:domain.indexes[end]] .*= V
+        else
+            @views dydt[domain.indexes[1]:domain.indexes[end]] .*= domain.diffusionlength*domain.A
+        end
+    else
+        addreactionratecontributions!(dydt,domain.rxnarray,cstot,kfs,krevs)
+        @views dydt[domain.indexes[1]:domain.indexes[2]] .*= V
+    end
     for (i,domain) in enumerate(@views domains[2:end])
         k = i + 1
         vns[k],vcs[k],vT[k],vP[k],vV[k],vC[k],vN[k],vmu[k],vkfs[k],vkrevs[k],vHs[k],vUs[k],vGs[k],vdiffs[k],vCvave[k],vcpdivR[k],vphi[k] = calcthermo(domain,y,t,p)
         cstot[domain.indexes[1]:domain.indexes[2]] .= vcs[k]
-        addreactionratecontributions!(dydt,domain.rxnarray,cstot,vkfs[k],vkrevs[k])
-        @views dydt[domain.indexes[1]:domain.indexes[2]] .*= vV[k]
+        if isa(domain,ConstantTrhoDomain)
+            Mwstot[domain.indexes[1]:domain.indexes[2]] .= domain.Mws
+            addreactionratecontributions!(dydt,domain.rxnfluxarray,domain.rxnarray,cstot,vkfs[k],vkrevs[k],domain.indexes[3],Mwstot,domain.solidindexes)
+            if vV[k]/domain.A < domain.diffusionlength
+                @views dydt[domain.indexes[1]:domain.indexes[end]] .*= vV[k]
+            else
+                @views dydt[domain.indexes[1]:domain.indexes[end]] .*= domain.diffusionlength*domain.A
+            end
+        else
+            addreactionratecontributions!(dydt,domain.rxnarray,cstot,vkfs[k],vkrevs[k])
+            @views dydt[domain.indexes[1]:domain.indexes[2]] .*= vV[k]
+        end
     end
     for (i,inter) in enumerate(interfaces)
         if isa(inter,AbstractReactiveInternalInterface)
             evaluate(inter,dydt,domains,vT[inter.domaininds[1]],vT[inter.domaininds[2]],vphi[inter.domaininds[1]],vphi[inter.domaininds[2]],vGs[inter.domaininds[1]],vGs[inter.domaininds[2]],cstot,p)
         elseif isa(inter,VaporLiquidMassTransferInternalInterfaceConstantT)
             evaluate(inter,dydt,vV[inter.domaininds[1]],vV[inter.domaininds[2]],vT[inter.domaininds[1]],vT[inter.domaininds[2]],vN[inter.domaininds[1]],vN[inter.domaininds[2]],vP[inter.domaininds[1]],vP[inter.domaininds[2]],vCvave[inter.domaininds[1]],vCvave[inter.domaininds[2]],vns[inter.domaininds[1]],vns[inter.domaininds[2]],vUs[inter.domaininds[1]],vUs[inter.domaininds[2]],cstot,p)
+        elseif isa(inter,DiffusiveInternalInterface)
+            evaluate(inter,dydt,vV[inter.domaininds[1]],vV[inter.domaininds[2]],vT[inter.domaininds[1]],vT[inter.domaininds[2]],cstot,p)
         end
     end
     for (i,domain) in enumerate(domains)
         calcdomainderivatives!(domain,dydt,interfaces;t=t,T=vT[i],P=vP[i],Us=vUs[i],Hs=vHs[i],V=vV[i],C=vC[i],ns=vns[i],N=vN[i],Cvave=vCvave[i])
+    end
+    for (i,inter) in enumerate(interfaces)
+        if isa(inter,VaporLiquidMassTransferInternalInterfaceConstantT)
+            evaluate(inter,dydt,vV[inter.domaininds[1]],vV[inter.domaininds[2]],vT[inter.domaininds[1]],vT[inter.domaininds[2]],vN[inter.domaininds[1]],vN[inter.domaininds[2]],vP[inter.domaininds[1]],vP[inter.domaininds[2]],vCvave[inter.domaininds[1]],vCvave[inter.domaininds[2]],vns[inter.domaininds[1]],vns[inter.domaininds[2]],vUs[inter.domaininds[1]],vUs[inter.domaininds[2]],cstot,p)
+        end
     end
     return dydt
 end
@@ -784,6 +888,25 @@ function jacobianp(y::U,p::W,t::Z,domain::V,interfaces::Q3,colorvec::Q2=nothing)
     jacobianp!(J,y,p,t,domain,interfaces,colorvec)
     return J
 end
+export jacobianp
+
+function jacobiany(y::U,p::W,t::Z,domains::V,interfaces::Q3,colorvec::Q2=nothing) where {Q3,Q2,U<:AbstractArray,W,Z<:Real,V<:Tuple}
+    J = zeros(length(y),length(y))
+    for domain in domains
+        jacobiany!(J,y,p,t,domain,interfaces,colorvec)
+    end
+    return J
+end
+export jacobiany
+
+function jacobianp(y::U,p::W,t::Z,domains::V,interfaces::Q3,colorvec::Q2=nothing) where {Q3,Q2,U<:AbstractArray,W,Z<:Real,V<:Tuple}
+    J = zeros(length(y),length(p))
+    for domain in domains
+        jacobianp!(J,y,p,t,domain,interfaces,colorvec)
+    end
+    return J
+end
+
 export jacobianp
 
 @inline function _spreadreactantpartials!(jac::S,deriv::Float64,rxnarray::Array{Int64,2},rxnind::Int64,ind::Int64) where {S<:AbstractArray}

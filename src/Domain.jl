@@ -703,6 +703,121 @@ function ConstantTAPhiDomain(;phase::E2,initialconds::Dict{X,X2},constantspecies
 end
 export ConstantTAPhiDomain
 
+mutable struct ConstantTrhoDomain{N<:AbstractPhase,S<:Integer,W<:Real, W2<:Real, I<:Integer, Q<:AbstractArray,K1,V1} <: AbstractConstantKDomain
+    phase::N
+    indexes::Q #assumed to be in ascending order
+    parameterindexes::Q
+    constantspeciesinds::Array{S,1}
+    T::Float64
+    rho::Float64
+    A::Float64
+    kfs::Array{W,1}
+    krevs::Array{W,1}
+    kfsnondiff::Array{W,1}
+    efficiencyinds::Array{I,1}
+    Gs::Array{W,1}
+    rxnfluxarray::Array{Int64,2}
+    rxnarray::Array{Int64,2}
+    mu::W
+    diffusivity::Array{W,1}
+    jacobian::Array{W,2}
+    sensitivity::Bool
+    alternativepformat::Bool
+    jacuptodate::MArray{Tuple{1},Bool,1,1}
+    t::MArray{Tuple{1},W2,1,1}
+    p::Array{W,1}
+    thermovariabledict::Dict{String,Int64}
+    fluxmapping::Dict{K1,V1}
+    Mws::Array{Float64,1}
+    solidindexes::Array{Int64,1}
+    kfdisabledinds::Array{Int64,1}
+    krevdisabledinds::Array{Int64,1}
+    epsilon::Float64
+    diffusionlength::Float64
+end
+
+function ConstantTrhoDomain(;phase::Z,initialconds::Dict{X,E},fluxmapping::Dict{X1,E1},solidspecies::Array{X3,1},kfdisabledinds::Array{Int64,1}=Array{Int64,1}(),krevdisabledinds::Array{Int64,1}=Array{Int64,1}(),epsilon::Float64=1.0,diffusionlength::Float64=Inf,constantspecies::Array{X4,1}=Array{String,1}(),
+    sparse::Bool=false,sensitivity::Bool=false) where {X,E,X1,E1,X3,X4,Z<:AbstractPhase}
+    #set conditions and initialconditions
+    T = 0.0
+    rho = 0.0
+    mass = 0.0
+    P = 1.0e8
+    A = 0.0
+    y0 = zeros(length(phase.species)+1) #track mass
+    spcnames = getfield.(phase.species,:name)
+    for (key,val) in initialconds
+        if key == "T"
+            T = val
+        elseif key == "P"
+            throw(error("ConstantTrhoDomain cannot specify P"))
+        elseif key == "A"
+            A = val
+        elseif key == "rho"
+            rho = val
+        elseif key == "mass"
+            mass = val
+            y0[end] = val
+        else
+            ind = findfirst(isequal(key),spcnames)
+            @assert typeof(ind)<: Integer  "$key not found in species list: $spcnames"
+            y0[ind] = val
+        end
+    end
+    @assert T != 0.0
+    @assert rho != 0.0
+    @assert mass != 0.0
+    @assert A != 0.0
+
+    ns = y0[1:end-1]
+    N = sum(ns)
+    V = mass/rho
+
+    if length(constantspecies) > 0
+        constspcinds = [findfirst(isequal(k),spcnames) for k in constantspecies]
+    else
+        constspcinds = Array{Int64,1}()
+    end
+    efficiencyinds = [rxn.index for rxn in phase.reactions if typeof(rxn.kinetics)<:AbstractFalloffRate && length(rxn.kinetics.efficiencies) > 0]
+    Gs = calcgibbs(phase,T)
+    if :solvent in fieldnames(typeof(phase)) && typeof(phase.solvent) != EmptySolvent
+        mu = phase.solvent.mu(T)
+    else
+        mu = 0.0
+    end
+    if phase.diffusionlimited
+        diffs = [x(T=T,mu=mu,P=P) for x in getfield.(phase.species,:diffusion)]
+    else
+        diffs = Array{Float64,1}()
+    end
+
+    C = N/V
+    kfs,krevs = getkfkrevs(phase,T,P,C,N,ns,Gs,diffs,V,0.0)
+    kfsnondiff = getkfs(phase,T,P,C,ns,V,0.0)
+                                                                                                    
+    for ind in kfdisabledinds
+        kfs[ind] = 0.0
+    end
+    for ind in krevdisabledinds
+        krevs[ind] = 0.0
+    end
+    p = vcat(Gs,kfsnondiff)
+    if sparse
+        jacobian=zeros(typeof(T),length(phase.species),length(phase.species))
+    else
+        jacobian=zeros(typeof(T),length(phase.species),length(phase.species))
+    end
+    rxnfluxarray = getreactionindices(phase,fluxmapping)
+    rxnarray  = getreactionindices(phase)
+    Mws = getfield.(phase.species,:molecularweight)
+    solidindexes = sort([findfirst(x->x==name,spcnames) for name in solidspecies])
+
+    return ConstantTrhoDomain(phase,[phase.species[1].index,phase.species[end].index,phase.species[end].index+1],[1,length(phase.species)+length(phase.reactions)],constspcinds,
+        T,rho,A,kfs,krevs,kfsnondiff,efficiencyinds,Gs,rxnfluxarray,rxnarray,mu,diffs,jacobian,sensitivity,false,MVector(false),MVector(0.0),p,Dict("mass"=>phase.species[end].index+1),fluxmapping,Mws,solidindexes,kfdisabledinds,krevdisabledinds,epsilon,diffusionlength), y0, p
+end
+
+export ConstantTrhoDomain
+
 @inline function calcthermo(d::ConstantTPDomain{W,Y},y::J,t::Q,p::W3=SciMLBase.NullParameters()) where {W3<:SciMLBase.NullParameters,W<:IdealGas,Y<:Integer,J<:Array{Float64,1},Q} #no parameter input
     ns = y[d.indexes[1]:d.indexes[2]]
     V = y[d.indexes[3]]
@@ -1455,6 +1570,134 @@ end
     krevs = getkfkrevs(d.phase,d.T,P,C,N,ns,Gs,d.diffusivity,d.A,d.phi;kfs=kfs)[2]
     return ns,cs,d.T,P,d.A,C,N,d.mu,kfs,krevs,Array{Float64,1}(),Array{Float64,1}(),Gs,Array{Float64,1}(),0.0,Array{Float64,1}(),d.phi
 end
+
+function calcthermo(d::ConstantTrhoDomain{W,Y},y::J,t::Q,p::Q2=SciMLBase.NullParameters()) where {Q2<:SciMLBase.NullParameters,W<:IdealDiluteSolution,Y<:Integer,J<:AbstractArray,Q}
+    ns = y[d.indexes[1]:d.indexes[2]]
+    N = sum(ns)
+    mass = y[d.indexes[3]]
+    V = mass/d.rho
+    cs = ns./V
+    C = N/V
+    P = 1.0e8
+    return ns,cs,d.T,P,V,C,N,d.mu,d.kfs,d.krevs,Array{Float64,1}(),Array{Float64,1}(),Array{Float64,1}(),Array{Float64,1}(),0.0,Array{Float64,1}(),0.0
+end
+
+function calcthermo(d::ConstantTrhoDomain{W,Y},y::J,t::Q,p::Q2=SciMLBase.NullParameters()) where {Q2<:Array{Float64,1},W<:IdealDiluteSolution,Y<:Integer,J<:Array{Float64,1},Q}
+    ns = y[d.indexes[1]:d.indexes[2]]
+    N = sum(ns)
+    mass = y[d.indexes[3]]
+    V = mass/d.rho
+    cs = ns./V
+    C = N/V
+    P = 1.0e8
+    if !d.alternativepformat
+        @views nothermochg = d.Gs == p[d.parameterindexes[1]-1+1:d.parameterindexes[1]-1+length(d.phase.species)]
+        @views nokfchg = d.kfsnondiff == p[d.parameterindexes[1]-1+length(d.phase.species)+1:d.parameterindexes[1]-1+length(d.phase.species)+length(d.phase.reactions)]
+        if nothermochg && nokfchg
+            return ns,cs,d.T,P,V,C,N,d.mu,d.kfs,d.krevs,Array{Float64,1}(),Array{Float64,1}(),Array{Float64,1}(),Array{Float64,1}(),0.0,Array{Float64,1}(),0.0
+        elseif nothermochg
+            d.kfsnondiff = p[d.parameterindexes[1]-1+length(d.phase.species)+1:d.parameterindexes[1]-1+length(d.phase.species)+length(d.phase.reactions)]
+            d.kfs,d.krevs = getkfkrevs(d.phase,d.T,P,C,N,ns,d.Gs,d.diffusivity,V,0.0;kfs=d.kfsnondiff)
+            @simd for ind in d.kfdisabledinds
+                d.kfs[ind] = 0.0
+            end
+            @simd for ind in d.krevdisabledinds
+                d.krevs[ind] = 0.0
+            end
+            return ns,cs,d.T,P,V,C,N,d.mu,d.kfs,d.krevs,Array{Float64,1}(),Array{Float64,1}(),Array{Float64,1}(),Array{Float64,1}(),0.0,Array{Float64,1}(),0.0
+        else
+            d.kfsnondiff = p[d.parameterindexes[1]-1+length(d.phase.species)+1:d.parameterindexes[1]-1+length(d.phase.species)+length(d.phase.reactions)]
+            d.Gs = p[d.parameterindexes[1]-1+1:d.parameterindexes[1]-1+length(d.phase.species)]
+            d.kfs,d.krevs = getkfkrevs(d.phase,d.T,P,C,N,ns,d.Gs,d.diffusivity,V,0.0;kfs=d.kfsnondiff)
+            @simd for ind in d.kfdisabledinds
+                d.kfs[ind] = 0.0
+            end
+            @simd for ind in d.krevdisabledinds
+                d.krevs[ind] = 0.0
+            end
+            return ns,cs,d.T,P,V,C,N,d.mu,d.kfs,d.krevs,Array{Float64,1}(),Array{Float64,1}(),Array{Float64,1}(),Array{Float64,1}(),0.0,Array{Float64,1}(),0.0
+        end
+    else
+        @views nothermochg = d.Gs == d.p[1:length(d.phase.species)].+p[d.parameterindexes[1]-1+1:d.parameterindexes[1]-1+length(d.phase.species)]
+        @views nokfchg = d.kfsnondiff == d.p[length(d.phase.species)+1:length(d.phase.species)+length(d.phase.reactions)].*p[d.parameterindexes[1]-1+length(d.phase.species)+1:d.parameterindexes[1]-1+length(d.phase.species)+length(d.phase.reactions)]
+        if nothermochg && nokfchg
+            return ns,cs,d.T,P,V,C,N,d.mu,d.kfs,d.krevs,Array{Float64,1}(),Array{Float64,1}(),Array{Float64,1}(),Array{Float64,1}(),0.0,Array{Float64,1}(),0.0
+        elseif nothermochg
+            d.kfsnondiff .= d.p[length(d.phase.species)+1:length(d.phase.species)+length(d.phase.reactions)].*p[d.parameterindexes[1]-1+length(d.phase.species)+1:d.parameterindexes[1]-1+length(d.phase.species)+length(d.phase.reactions)]
+            d.kfs,d.krevs = getkfkrevs(d.phase,d.T,P,C,N,ns,d.Gs,d.diffusivity,V,0.0;kfs=d.kfsnondiff)
+            @simd for ind in d.kfdisabledinds
+                d.kfs[ind] = 0.0
+            end
+            @simd for ind in d.krevdisabledinds
+                d.krevs[ind] = 0.0
+            end
+            return ns,cs,d.T,P,V,C,N,d.mu,d.kfs,d.krevs,Array{Float64,1}(),Array{Float64,1}(),Array{Float64,1}(),Array{Float64,1}(),0.0,Array{Float64,1}(),0.0
+        else
+            d.kfsnondiff .= d.p[length(d.phase.species)+1:length(d.phase.species)+length(d.phase.reactions)].*p[d.parameterindexes[1]-1+length(d.phase.species)+1:d.parameterindexes[1]-1+length(d.phase.species)+length(d.phase.reactions)]
+            d.Gs .= d.p[1:length(d.phase.species)].+p[d.parameterindexes[1]-1+1:d.parameterindexes[1]-1+length(d.phase.species)]
+            d.kfs,d.krevs = getkfkrevs(d.phase,d.T,P,C,N,ns,d.Gs,d.diffusivity,V,0.0;kfs=d.kfsnondiff)
+            @simd for ind in d.kfdisabledinds
+                d.kfs[ind] = 0.0
+            end
+            @simd for ind in d.krevdisabledinds
+                d.krevs[ind] = 0.0
+            end
+            return ns,cs,d.T,P,V,C,N,d.mu,d.kfs,d.krevs,Array{Float64,1}(),Array{Float64,1}(),Array{Float64,1}(),Array{Float64,1}(),0.0,Array{Float64,1}(),0.0
+        end
+    end
+
+end
+
+function calcthermo(d::ConstantTrhoDomain{W,Y},y::Array{W2,1},t::Q,p::Q2=SciMLBase.NullParameters()) where {W2<:ForwardDiff.Dual,Q2,W<:IdealDiluteSolution,Y<:Integer,J<:AbstractArray,Q} #autodiff y
+    ns = y[d.indexes[1]:d.indexes[2]]
+    N = sum(ns)
+    mass = y[d.indexes[3]]
+    V = mass/d.rho
+    cs = ns./V
+    C = N/V
+    P = 1.0e8
+    if !d.alternativepformat
+        Gs = p[d.parameterindexes[1]-1+1:d.parameterindexes[1]-1+length(d.phase.species)]
+        kfsnondiff = convert(typeof(y),p[d.parameterindexes[1]-1+length(d.phase.species)+1:d.parameterindexes[1]-1+length(d.phase.species)+length(d.phase.reactions)])
+    else
+        Gs = d.p[1:length(d.phase.species)].+p[d.parameterindexes[1]-1+1:d.parameterindexes[1]-1+length(d.phase.species)]
+        kfsnondiff = convert(typeof(y),d.p[length(d.phase.species)+1:end].*p[d.parameterindexes[1]-1+length(d.phase.species)+1:d.parameterindexes[1]-1+length(d.phase.species)+length(d.phase.reactions)])
+    end
+    kfs,krevs = getkfkrevs(d.phase,d.T,P,C,N,ns,Gs,d.diffusivity,V,0.0;kfs=kfsnondiff)
+    @simd for ind in d.kfdisabledinds
+        kfs[ind] = 0.0
+    end
+    @simd for ind in d.krevdisabledinds
+        krevs[ind] = 0.0
+    end
+    return ns,cs,d.T,P,V,C,N,d.mu,kfs,krevs,Array{Float64,1}(),Array{Float64,1}(),Array{Float64,1}(),Array{Float64,1}(),0.0,Array{Float64,1}(),0.0
+end
+
+function calcthermo(d::ConstantTrhoDomain{W,Y},y::J,t::Q,p::Q2=SciMLBase.NullParameters()) where {Q2,W<:IdealDiluteSolution,Y<:Integer,J<:AbstractArray,Q} #autodiff p
+    ns = y[d.indexes[1]:d.indexes[2]]
+    N = sum(ns)
+    mass = y[d.indexes[3]]
+    V = mass/d.rho
+    cs = ns./V
+    C = N/V
+    P = 1.0e8
+    if !d.alternativepformat
+        Gs = p[d.parameterindexes[1]-1+1:d.parameterindexes[1]-1+length(d.phase.species)]
+        kfsnondiff = p[d.parameterindexes[1]-1+length(d.phase.species)+1:d.parameterindexes[1]-1+length(d.phase.species)+length(d.phase.reactions)]
+    else
+        Gs = d.p[1:length(d.phase.species)].+p[d.parameterindexes[1]-1+1:d.parameterindexes[1]-1+length(d.phase.species)]
+        kfsnondiff = d.p[length(d.phase.species)+1:end].*p[d.parameterindexes[1]-1+length(d.phase.species)+1:d.parameterindexes[1]-1+length(d.phase.species)+length(d.phase.reactions)]
+    end
+    kfs,krevs = getkfkrevs(d.phase,d.T,P,C,N,ns,Gs,d.diffusivity,V,0.0;kfs=kfsnondiff)
+    @simd for ind in d.kfdisabledinds
+        kfs[ind] = 0.0
+    end
+    @simd for ind in d.krevdisabledinds
+        krevs[ind] = 0.0
+    end
+    return ns,cs,d.T,P,V,C,N,d.mu,kfs,krevs,Array{Float64,1}(),Array{Float64,1}(),Array{Float64,1}(),Array{Float64,1}(),0.0,Array{Float64,1}(),0.0
+end
+
 export calcthermo
 
 @inline function calcdomainderivatives!(d::Q,dydt::Z7,interfaces::Z12;t::Z10,T::Z4,P::Z9,Us::Array{Z,1},Hs::Array{Z11,1},V::Z2,C::Z3,ns::Z5,N::Z6,Cvave::Z8) where {Q<:AbstractDomain,Z12,Z11,Z10,Z9,Z8<:Real,Z7,W<:IdealGas,Y<:Integer,Z6,Z,Z2,Z3,Z4,Z5}
@@ -1477,6 +1720,9 @@ export calcthermo
             dydt[d.indexes[1]:d.indexes[2]] .-= inter.Vout(t)*ns/V
         end
     end
+    for ind in d.constantspeciesinds #make dydt zero for constant species
+        @inbounds dydt[ind] = 0.0
+    end
 end
 
 @inline function calcdomainderivatives!(d::Q,dydt::Z7,interfaces::Z12;t::Z10,T::Z4,P::Z9,Us::Array{Z,1},Hs::Array{Z11,1},V::Z2,C::Z3,ns::Z5,N::Z6,Cvave::Z8) where {Q<:ConstantTPDomain,Z12,Z11,Z10,Z9,Z8<:Real,Z7,W<:IdealGas,Y<:Integer,Z6,Z,Z2,Z3,Z4,Z5}
@@ -1494,10 +1740,12 @@ end
         elseif isa(inter,kLAkHCondensationEvaporationWithReservoir) && d == inter.domain
             kLAs = map.(inter.kLAs,inter.T)
             kHs = map.(inter.kHs,inter.T)
-            evap = kLAs.*inter.cs*V
+            evap = kLAs.*inter.cs*inter.V
             cond = kLAs.*ns./kHs
 
-            dydt[d.indexes[1]:d.indexes[2]] .+= (evap .- cond)
+            @views @inbounds dydt[d.indexes[1]:d.indexes[2]] .+= (evap .- cond)
+            Vout = sum(evap .- cond)*R*T/P
+            @views @inbounds dydt[d.indexes[1]:d.indexes[2]] .-= Vout*ns/V
         elseif isa(inter,VolumetricFlowRateOutlet) && d == inter.domain
             dydt[d.indexes[1]:d.indexes[2]] .-= inter.Vout(t)*ns/V
             dydt[d.indexes[3]] -= inter.Vout(t)
@@ -1523,9 +1771,9 @@ end
         if isa(inter,Inlet) && d == inter.domain
             flow = inter.F(t)
             dydt[d.indexes[1]:d.indexes[2]] .+= inter.y.*flow
-            dTdt = flow*(inter.H - dot(Us,ns)/N)/(N*Cvave)
-            dydt[d.indexes[3]] += dTdt
-            dydt[d.indexes[4]] += flow*R*T/V + P/T*dTdt
+            # dTdt = flow*(inter.H - dot(Us,ns)/N)/(N*Cvave)
+            # dydt[d.indexes[3]] += dTdt
+            # dydt[d.indexes[4]] += flow*R*T/V + P/T*dTdt
         elseif isa(inter,Outlet) && d == inter.domain
             flow = inter.F(t)
             dydt[d.indexes[1]:d.indexes[2]] .-= flow.*ns./N
@@ -1535,7 +1783,7 @@ end
         elseif isa(inter,kLAkHCondensationEvaporationWithReservoir) && d == inter.domain
             kLAs = map.(inter.kLAs,inter.T)
             kHs = map.(inter.kHs,inter.T)
-            evap = kLAs.*inter.cs*V
+            evap = kLAs.*inter.cs*inter.V
             cond = kLAs.*ns./kHs
             dydt[d.indexes[1]:d.indexes[2]] .+= (evap .- cond)
 
@@ -1550,10 +1798,13 @@ end
             dydt[d.indexes[4]] -= flow*R*T/V + P/T*dTdt
         elseif isa(inter,VolumetricFlowRateOutlet) && d == inter.domain
             dydt[d.indexes[1]:d.indexes[2]] .-= inter.Vout(t)*ns/V
-            dTdt = (P*inter.Vout(t))/(N*Cvave)
-            dydt[d.indexes[3]] -= dTdt
-            dydt[d.indexes[4]] -= inter.Vout(t)*P/V + P/T*dTdt
+            # dTdt = (P*inter.Vout(t))/(N*Cvave)
+            # dydt[d.indexes[3]] -= dTdt
+            # dydt[d.indexes[4]] -= inter.Vout(t)*P/V + P/T*dTdt
         end
+    end
+    for ind in d.constantspeciesinds #make dydt zero for constant species
+        @inbounds dydt[ind] = 0.0
     end
 end
 
@@ -1578,7 +1829,7 @@ end
         elseif isa(inter,kLAkHCondensationEvaporationWithReservoir) && d == inter.domain
             kLAs = map.(inter.kLAs,inter.T)
             kHs = map.(inter.kHs,inter.T)
-            evap = kLAs.*inter.cs*V
+            evap = kLAs.*inter.cs*inter.V
             cond = kLAs.*ns./kHs
             dydt[d.indexes[1]:d.indexes[2]] .+= (evap .- cond)
 
@@ -1621,7 +1872,7 @@ end
         elseif isa(inter,kLAkHCondensationEvaporationWithReservoir) && d == inter.domain
             kLAs = map.(inter.kLAs,inter.T)
             kHs = map.(inter.kHs,inter.T)
-            evap = kLAs.*inter.cs*V
+            evap = kLAs.*inter.cs*inter.V
             cond = kLAs.*ns./kHs
             dydt[d.indexes[1]:d.indexes[2]] .+= (evap .- cond)
 
@@ -1668,7 +1919,7 @@ end
         elseif isa(inter,kLAkHCondensationEvaporationWithReservoir) && d == inter.domain
             kLAs = map.(inter.kLAs,inter.T)
             kHs = map.(inter.kHs,inter.T)
-            evap = kLAs.*inter.cs*V
+            evap = kLAs.*inter.cs*inter.V
             cond = kLAs.*ns./kHs
             dydt[d.indexes[1]:d.indexes[2]] .+= (evap .- cond)
 
@@ -1712,7 +1963,7 @@ end
         elseif isa(inter,kLAkHCondensationEvaporationWithReservoir) && d == inter.domain
             kLAs = map.(inter.kLAs,inter.T)
             kHs = map.(inter.kHs,inter.T)
-            evap = kLAs.*inter.cs*V
+            evap = kLAs.*inter.cs*inter.V
             cond = kLAs.*ns./kHs
             dydt[d.indexes[1]:d.indexes[2]] .+= (evap .- cond)
 
@@ -1727,14 +1978,6 @@ end
         elseif isa(inter,VolumetricFlowRateOutlet) && d == inter.domain
             dydt[d.indexes[1]:d.indexes[2]] .-= inter.Vout(t)*ns/V
             dydt[d.indexes[4]] -= inter.Vout(t)
-        end
-    end
-    for inter in interfaces
-        if isa(inter,VolumeMaintainingOutlet) && d == inter.domain #VolumeMaintainingOutlet has to be evaluated after dVdt has been modified by everything else
-            @inbounds dVdt = dydt[d.indexes[4]]
-            @inbounds flow = P*dVdt/(R*T)
-            @views @inbounds dydt[d.indexes[1]:d.indexes[2]] .-= flow * ns/N
-            @inbounds dydt[d.indexes[4]] -= dVdt
         end
     end
 end
@@ -2032,7 +2275,7 @@ end
         elseif isa(inter,kLAkHCondensationEvaporationWithReservoir) && domain == inter.domain
             kLAs = map.(inter.kLAs,inter.T)
             kHs = map.(inter.kHs,inter.T)
-            evap = kLAs.*inter.cs*V
+            evap = kLAs.*inter.cs*inter.V
             cond = kLAs.*ns./kHs
 
             #evaporation
@@ -2065,7 +2308,7 @@ end
                 @inbounds jac[domain.indexes[3],i] -= ddnidTdt
                 @inbounds @fastmath jac[domain.indexes[4],i] -= kLAs[i]/kHs[i]*R*T/V + P/T*ddnidTdt
             end
-        elseif isa(inter,VolumetricFlowRateOutlet) && domain == inter.domain
+        elseif isa(inter,VolumetricFlowRateOutlet) && d == inter.domain
             # outlet
             # flow = inter.Vout(t)*sum(ns)/V
             # dflowdni = inter.Vout(t)/V
@@ -2076,7 +2319,7 @@ end
             @simd for i in domain.indexes[1]:domain.indexes[2]
                 @inbounds @fastmath jac[i,i] -= inter.Vout(t)/V
                 @inbounds @fastmath dCvavedni = cpdivR[i]*R/N
-                @fastmath ddnidTdt = (inter.Vout*P/N)/(N*Cvave)-dTdt*(dCvavedni/Cvave)
+                @fastmath ddnidTdt = (inter.Vout(t)*P/N)/(N*Cvave)-dTdt*(dCvavedni/Cvave)
                 @inbounds jac[domain.indexes[3],i] -= ddnidTdt
                 @inbounds @fastmath jac[domain.indexes[4],i] -= inter.Vout(t)/V*R*T/V + P/T*ddnidTdt
             end
@@ -2253,7 +2496,7 @@ end
         elseif isa(inter,kLAkHCondensationEvaporationWithReservoir) && domain == inter.domain
             kLAs = map.(inter.kLAs,inter.T)
             kHs = map.(inter.kHs,inter.T)
-            evap = kLAs.*inter.cs*V
+            evap = kLAs.*inter.cs*inter.V
             
             # evaporation
             # inlet
@@ -2261,11 +2504,11 @@ end
             # ddnidTdt = flow*(-Hs[i]/N)/(N*Cpave)-dTdt*(dCpavedni/Cpave)
             # d/dni (dV/dt) = V/T * d/dni(dT/dt)
             # d/dV (dT/dt) = flow*(dot(Hs, ns)/N)/V/(N*Cpave)
-            # d/dV (dV/dt) = dflow/dV*R*T/P + dT/dt/T + V/T * d/dV(dT/dt) = flow/V*R*T/P + dT/dt/T + V/T * d/dV(dT/dt) = flow/N + dT/dt/T + V/T * d/dV(dT/dt)
-            # d/dV(dni/dt) = dflow_i/dV = kLAs[i]*inter.cs[i]
-            # dflowdV = sum(kLAs.*inter.cs) = flow/V
-            # flow_i = kLAs[i]*inter.cs[i]*V
-            # dflow_i/dV = kLAs[i]*inter.cs[i]
+            # d/dV (dV/dt) = dflow/dV*R*T/P + dT/dt/T + V/T * d/dV(dT/dt) = dT/dt/T + V/T * d/dV(dT/dt) = dT/dt/T + V/T * d/dV(dT/dt)
+            # d/dV(dni/dt) = dflow_i/dV = 0
+            # dflowdV = 0
+            # flow_i = kLAs[i]*inter.cs[i]*inter.V
+            # dflow_i/dV = 0
             flow = sum(evap)
             @fastmath H = dot(Hs,ns)/N
             @fastmath dTdt = flow*(inter.H - H)/(N*Cpave)
@@ -2277,8 +2520,7 @@ end
             end
             @fastmath ddVdTdt = flow*H/V/(N*Cpave)
             @inbounds jac[domain.indexes[3],domain.indexes[4]] += ddVdTdt
-            @inbounds @fastmath jac[domain.indexes[1]:domain.indexes[2],domain.indexes[4]] .+= kLAs.*inter.cs
-            @inbounds @fastmath jac[domain.indexes[4],domain.indexes[4]] += flow/N + dTdt/T + V/T*ddVdTdt
+            @inbounds @fastmath jac[domain.indexes[4],domain.indexes[4]] += fdTdt/T + V/T*ddVdTdt
 
             # condensation
             # outlet
@@ -2294,7 +2536,7 @@ end
                 @inbounds @fastmath jac[i,i] -= kLAs[i]/kHs[i]
             end
             @views @inbounds @fastmath jac[domain.indexes[4],domain.indexes[1]:domain.indexes[2]] .-= kLAs./kHs*R*T/P
-        elseif isa(inter,VolumetricFlowRateOutlet) && domain == inter.domain
+        elseif isa(inter,VolumetricFlowRateOutlet) && d == inter.domain
             # outlet
             # dTdt = 0
             # d/dni (dV/dt) = dflow/dni *R*T/P = inter.Vout/V*R*T/P = inter.Vout/N
@@ -2378,7 +2620,7 @@ end
                 @inbounds @fastmath jac[i,i] -= kLAs[i]/kHs[i]
             end
             @views @inbounds @fastmath jac[domain.indexes[3],domain.indexs[1]:domain.indexes[2]] .-= kLAs./kHs*R*T/P
-        elseif isa(inter,VolumetricFlowRateOutlet) && domain == inter.domain
+        elseif isa(inter,VolumetricFlowRateOutlet) && d == inter.domain
             # outlet
             # d/dni(dV/dt) = dflow/dni*R*T/P = inter.Vout(t)/V*R*T/P = inter.Vout(t)/N
             # d/dV(dV/dt) = dflow/dV *R*T/P = -inter.Vout*sum(ns)/V^2*R*T/P = -inter.Vout/V*sum(ns)/N
@@ -2451,7 +2693,7 @@ end
         elseif isa(inter,kLAkHCondensationEvaporationWithReservoir) && domain == inter.domain
             kLAs = map.(inter.kLAs,inter.T)
             kHs = map.(inter.kHs,inter.T)
-            evap = kLAs.*inter.cs*V
+            evap = kLAs.*inter.cs*inter.V
             cond = kLAs.*ns./kHs
             
             # evaporation
@@ -2485,7 +2727,7 @@ end
                 @inbounds jac[domain.indexes[3],i] -= ddnidTdt
                 @inbounds @fastmath jac[domain.indexes[4],i] -= kLAs[i]/kHs[i]*R*T/V + P/T*ddnidTdt
             end
-        elseif isa(inter,VolumetricFlowRateOutlet) && domain == inter.domain
+        elseif isa(inter,VolumetricFlowRateOutlet) && d == inter.domain
             # outlet
             # flow = inter.Vout(t)*sum(ns)/V
             # dflowdni = inter.Vout(t)/V
@@ -2576,7 +2818,7 @@ end
         elseif isa(inter,kLAkHCondensationEvaporationWithReservoir) && domain == inter.domain
             kLAs = map.(inter.kLAs,inter.T)
             kHs = map.(inter.kHs,inter.T)
-            evap = kLAs.*inter.cs*V
+            evap = kLAs.*inter.cs*inter.V
             
             # evaporation
             # inlet
@@ -2584,11 +2826,11 @@ end
             # ddnidTdt = flow*(-Hs[i]/N)/(N*Cpave)-dTdt*(dCpavedni/Cpave)
             # d/dni (dV/dt) = V/T * d/dni(dT/dt)
             # d/dV (dT/dt) = flow*(dot(Hs, ns)/N)/V/(N*Cpave)
-            # d/dV (dV/dt) = dflow/dV*R*T/P + dT/dt/T + V/T * d/dV(dT/dt) = flow/V*R*T/P + dT/dt/T + V/T * d/dV(dT/dt) = flow/N + dT/dt/T + V/T * d/dV(dT/dt)
-            # d/dV(dni/dt) = dflow_i/dV = kLAs[i]*inter.cs[i]
-            # dflowdV = sum(kLAs.*inter.cs) = flow/V
+            # d/dV (dV/dt) = dT/dt/T + V/T * d/dV(dT/dt) = dT/dt/T + V/T * d/dV(dT/dt) = dT/dt/T + V/T * d/dV(dT/dt)
+            # d/dV(dni/dt) = dflow_i/dV = 0
+            # dflowdV = 0
             # flow_i = kLAs[i]*inter.cs[i]*V
-            # dflow_i/dV = kLAs[i]*inter.cs[i]
+            # dflow_i/dV = 0
             flow = sum(evap)
             @fastmath H = dot(Hs,ns)/N
             @fastmath dTdt = flow*(inter.H - H)/(N*Cpave)
@@ -2600,8 +2842,7 @@ end
             end
             @fastmath ddVdTdt = flow*H/V/(N*Cpave)
             @inbounds jac[domain.indexes[3],domain.indexes[4]] += ddVdTdt
-            @inbounds @fastmath jac[domain.indexes[1]:domain.indexes[2],domain.indexes[4]] .+= kLAs.*inter.cs
-            @inbounds @fastmath jac[domain.indexes[4],domain.indexes[4]] += flow/N + dTdt/T + V/T*ddVdTdt
+            @inbounds @fastmath jac[domain.indexes[4],domain.indexes[4]] += dTdt/T + V/T*ddVdTdt
 
             # condensation
             # outlet
@@ -2617,7 +2858,7 @@ end
                 @inbounds @fastmath jac[i,i] -= kLAs[i]/kHs[i]
             end
             @views @inbounds @fastmath jac[domain.indexes[4],domain.indexes[1]:domain.indexes[2]] .-= kLAs./kHs*R*T/P
-        elseif isa(inter,VolumetricFlowRateOutlet) && domain == inter.domain
+        elseif isa(inter,VolumetricFlowRateOutlet) && d == inter.domain
             # outlet
             # dTdt = 0
             # d/dni (dV/dt) = dflow/dni *R*T/P = inter.Vout/V*R*T/P = inter.Vout/N
@@ -2664,7 +2905,7 @@ end
             @simd for i in domain.indexes[1]:domain.indexes[2]
                 @inbounds @fastmath jac[i,i] -= kLAs[i]
             end
-        elseif isa(inter,VolumetricFlowRateOutlet) && domain == inter.domain
+        elseif isa(inter,VolumetricFlowRateOutlet) && d == inter.domain
             @simd for i in domain.indexes[1]:domain.indexes[2]
                 @inbounds @fastmath jac[i,i] -= inter.Vout(t)/V
             end
@@ -3073,6 +3314,25 @@ export jacobianp!
 function getreactionindices(ig::Q) where {Q<:AbstractPhase}
     return deepcopy(ig.rxnarray)
 end
+
+function getreactionindices(phase::IdealDiluteSolution,fluxmapping::Dict{K1,V1}) where {Q<:AbstractPhase,K1,V1,K2,V2}
+    spcnummax = 0
+    for rxnind in keys(fluxmapping)
+        spcnummax = max(length.(values(fluxmapping[rxnind]))...) > spcnummax ? max(length.(values(fluxmapping[rxnind]))...) : spcnummax
+    end
+
+    rxnfluxarray = zeros(Int64,(spcnummax*2,length(phase.reactions)))
+    for i in 1:size(phase.rxnarray)[2]
+        reactantinds = collect(Iterators.flatten([fluxmapping[i][ind] for ind in phase.rxnarray[1:4,i] if ind !=0]))
+        rxnfluxarray[1:length(reactantinds),i] = reactantinds
+
+        productinds = collect(Iterators.flatten([fluxmapping[i][ind] for ind in phase.rxnarray[4:8,i] if ind !=0]))
+        rxnfluxarray[spcnummax+1:spcnummax+length(productinds),i] = productinds
+    end
+
+    return rxnfluxarray
+end
+
 export getreactionindices
 
 @inline function getsensspcsrxns(domain::D,ind::Int64) where {D<:AbstractDomain}

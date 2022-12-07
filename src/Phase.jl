@@ -277,7 +277,11 @@ function getreactionindices(spcs,rxns) where {Q<:AbstractPhase}
             end
             for (key,val) in rxn.kinetics.nameefficiencies
                 ind = findfirst(isequal(key),names)
-                rxn.kinetics.efficiencies[ind] = val
+                if ind !== nothing
+                    rxn_label = getrxnstr(rxn)
+                    @info "Add $key at index $ind for efficiencies of $rxn_label"
+                    rxn.kinetics.efficiencies[ind] = val
+                end
             end
         end
     end
