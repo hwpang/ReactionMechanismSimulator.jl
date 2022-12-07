@@ -65,6 +65,68 @@ function evaluate(ri::ReactiveInternalInterface,dydt,domains,T1,T2,phi1,phi2,Gs1
 end
 export evaluate
 
+struct DiffusiveInternalInterface{T,B,N} <: AbstractInternalInterface
+    domain1::T
+    domain2::N
+    diffusivespcnames::Array{String,1}
+    diffusionarray::B
+    parameterindexes::Array{Int64,1}
+    A::Float64
+    L::Float64
+    domaininds::Array{Int64,1}
+    p::Array{Float64,1}
+end
+
+function DiffusiveInternalInterface(domain1,domain2,domains,diffusivespcnames,A;L=1e-6)
+    domaininds = Array{Int64,1}([0,0])
+    diffusionarray = getinterfacediffusioninds(domain1,domain2,diffusivespcnames)
+    for (i,domain) in enumerate(domains)
+        if domain==domain1
+            domaininds[1]=i
+        elseif domain==domain2
+            domaininds[2]=i
+        end
+    end
+    return DiffusiveInternalInterface(domain1,domain2,diffusivespcnames,diffusionarray,[1,length(diffusivespcnames)],A,L,domaininds,ones(length(diffusivespcnames))),ones(length(diffusivespcnames))
+end
+export DiffusiveInternalInterface
+
+function getdiffs(di::DiffusiveInternalInterface,T1,T2) where {Q}
+    phase = di.domain1.phase
+    if :solvent in fieldnames(typeof(phase)) && typeof(phase.solvent) != EmptySolvent
+        mu = phase.solvent.mu(T1)
+    else
+        mu = 0.0
+    end
+    P = 1.0e8
+    diffs = [x(T=T1,mu=mu,P=P) for x in getfield.(phase.species,:diffusion)[di.diffusionarray[1,:]]]
+    return diffs
+end
+
+function evaluate(di::DiffusiveInternalInterface,dydt,V1,V2,T1,T2,cstot,p::W) where {W<:SciMLBase.NullParameters}
+    diffs = getdiffs(di,T1,T2)
+    if isa(di.domain1,ConstantTrhoDomain)
+        L = V1/di.domain1.A
+    elseif isa(di.domain2,ConstantTrhoDomain)
+        L = V2/di.domain2.A
+    else
+        L = di.L
+    end
+    addreactionratecontributions!(dydt,di.diffusionarray,cstot,diffs./L,diffs./L,di.A)
+end
+
+function evaluate(di::DiffusiveInternalInterface,dydt,V1,V2,T1,T2,cstot,p)
+    diffs = getdiffs(di,T1,T2)
+    if isa(di.domain1,ConstantTrhoDomain)
+        L = V1/di.domain1.A
+    elseif isa(di.domain2,ConstantTrhoDomain)
+        L = V2/di.domain2.A
+    else
+        L = di.L
+    end
+    addreactionratecontributions!(dydt,di.diffusionarray,cstot,diffs./L.*p[di.parameterindexes[1]:di.parameterindexes[2]],diffs./L.*p[di.parameterindexes[1]:di.parameterindexes[2]],di.A)
+end
+export evaluate
 
 struct ReactiveInternalInterfaceConstantTPhi{J,N,B,B2,B3,C,C2,Q<:AbstractReaction} <: AbstractReactiveInternalInterface
     domain1::J
@@ -189,6 +251,33 @@ function getinterfacereactioninds(domain1,domain2,reactions)
     return indices
 end
 
+function getinterfacediffusioninds(domain1,domain2,diffusivespcnames)
+    indices = zeros(Int64,(6,length(diffusivespcnames)))
+    N1 = length(domain1.phase.species)
+    spcnames1 = getfield.(domain1.phase.species,:name)
+    spcnames2 = getfield.(domain2.phase.species,:name) 
+    for (i,name) in enumerate(diffusivespcnames)
+        ind1 = findfirst(isequal(name),spcnames1)
+        ind2 = findfirst(isequal(name),spcnames2)
+        indices[1,i] = ind1
+        indices[4,i] = ind2+N1
+    end
+    return indices
+end
+
+function getinterfacemasstransferinds(domain1,domain2,masstransferspcnames)
+    indices = zeros(Int64,(6,length(masstransferspcnames)))
+    spcnames1 = getfield.(domain1.phase.species,:name)
+    spcnames2 = getfield.(domain2.phase.species,:name) 
+    for (i,name) in enumerate(masstransferspcnames)
+        ind1 = findfirst(isequal(name),spcnames1)
+        ind2 = findfirst(isequal(name),spcnames2)
+        indices[4,i] = domain2.indexes[1]-1+ind2
+        indices[1,i] = domain1.indexes[1]-1+ind1
+    end
+    return indices
+end
+
 function upgradekinetics(rxns,domain1,domain2)
     domain1surf = hasproperty(domain1.phase,:sitedensity)
     domain2surf = hasproperty(domain2.phase,:sitedensity)
@@ -275,11 +364,12 @@ kLA and kH are used to model cond/evap.
 kLA is liquid volumetric mass transfer coefficient with unit 1/s , and kH is Henry's law constant.
 """
 
-struct kLAkHCondensationEvaporationWithReservoir{S,V1<:AbstractArray,V2<:Real,V3<:Real,V4<:AbstractArray,V5<:Real,V6<:AbstractArray,V7<:AbstractArray} <: AbstractBoundaryInterface
+struct kLAkHCondensationEvaporationWithReservoir{S,V1<:AbstractArray,V2<:Real,V3<:Real,V4<:AbstractArray,V5<:Real,V6<:AbstractArray,V7<:AbstractArray,V8<:Real} <: AbstractBoundaryInterface
     domain::S
     molefractions::V1
     T::V2
     P::V3
+    V::V8
     cs::V4
     H::V5
     kLAs::V6
@@ -299,14 +389,14 @@ function kLAkHCondensationEvaporationWithReservoir(domain::D,conddict::Dict{X1,X
             @error "P needs to be specified for the vapor resevoir over the liquid phase domain"
         end
         P = conddict["P"]
-        return kLAkHCondensationEvaporationWithReservoir(domain,molefractions,T,P,Array{Float64,1}(),H,kLAs,kHs)
+        return kLAkHCondensationEvaporationWithReservoir(domain,molefractions,T,P,0.0,Array{Float64,1}(),H,kLAs,kHs)
     elseif isa(domain.phase,IdealGas)
         if !haskey(conddict,"V")
             @error "V needs to be specified for the liquid resevoir under the gas phase domain"
         end
         V = conddict["V"]
         cs = y./V
-        return kLAkHCondensationEvaporationWithReservoir(domain,Array{Float64,1}(),T,1e8,cs,H,kLAs,kHs)
+        return kLAkHCondensationEvaporationWithReservoir(domain,Array{Float64,1}(),T,1e8,V,cs,H,kLAs,kHs)
     end
 end
 

@@ -200,7 +200,7 @@ end
 
 export concentrations
 
-getT(bsol::Simulation{Q,W,L,G}, t::K) where {W<:Union{ConstantTPDomain,ConstantTVDomain},K<:Real,Q,G,L} = bsol.domain.T
+getT(bsol::Simulation{Q,W,L,G}, t::K) where {W<:Union{ConstantTPDomain,ConstantTVDomain,ConstantTrhoDomain},K<:Real,Q,G,L} = bsol.domain.T
 getT(bsol::Simulation{Q,W,L,G}, t::K) where {W<:Union{ConstantVDomain,ParametrizedVDomain,ConstantPDomain,ParametrizedPDomain},K<:Real,Q,G,L} = bsol.sol(t)[bsol.domain.indexes[3]]
 getT(bsol::Simulation{Q,W,L,G}, t::K) where {W<:Union{ParametrizedTConstantVDomain,ParametrizedTPDomain},K<:Real,Q,G,L} = bsol.domain.T(t)
 export getT
@@ -208,14 +208,16 @@ getV(bsol::Simulation{Q,W,L,G}, t::K) where {W<:Union{ConstantVDomain,ConstantTV
 getV(bsol::Simulation{Q,W,L,G}, t::K) where {W<:ParametrizedVDomain,K<:Real,Q,G,L} = bsol.domain.V(t)
 getV(bsol::Simulation{Q,W,L,G}, t::K) where {W<:Union{ConstantTPDomain,ParametrizedTPDomain},K<:Real,Q,G,L} = bsol.sol(t)[bsol.domain.indexes[3]]
 getV(bsol::Simulation{Q,W,L,G}, t::K) where {W<:Union{ParametrizedPDomain,ConstantPDomain},K<:Real,Q,G,L} = bsol.sol(t)[bsol.domain.indexes[4]]
+getV(bsol::Simulation{Q,W,L,G}, t::K) where {W<:ConstantTrhoDomain,K<:Real,Q,G,L} = bsol.sol(t)[bsol.domain.indexes[3]]/bsol.domain.rho
 export getV
 getP(bsol::Simulation{Q,W,L,G}, t::K) where {W<:Union{ConstantTPDomain,ConstantPDomain},K<:Real,Q,G,L} = bsol.domain.P
-getP(bsol::Simulation{Q,W,L,G}, t::K) where {W<:Union{ConstantTVDomain,ParametrizedTConstantVDomain},K<:Real,Q,G,L} = 1.0e6
+getP(bsol::Simulation{Q,W,L,G}, t::K) where {W<:Union{ConstantTVDomain,ParametrizedTConstantVDomain,ConstantTrhoDomain},K<:Real,Q,G,L} = 1.0e6
 getP(bsol::Simulation{Q,W,L,G}, t::K) where {W<:Union{ParametrizedTPDomain,ParametrizedPDomain},K<:Real,Q,G,L} = bsol.domain.P(t)
 getP(bsol::Simulation{Q,W,L,G}, t::K) where {W<:Union{ConstantVDomain, ParametrizedVDomain},K<:Real,Q,G,L} = bsol.sol(t)[bsol.domain.indexes[4]]
 export getP
 getC(bsol::Simulation{Q,W,L,G}, t::K) where {W<:ConstantTPDomain,K<:Real,Q,G,L} = bsol.domain.P/(R*bsol.domain.T)
 getC(bsol::Simulation{Q,W,L,G}, t::K) where {W<:Union{ConstantVDomain,ConstantTVDomain,ParametrizedTConstantVDomain},K<:Real,Q,G,L} = bsol.N(t)/bsol.domain.V
+getC(bsol::Simulation{Q,W,L,G}, t::K) where {W<:ConstantTrhoDomain,K<:Real,Q,G,L} = bsol.N(t)/getV(bsol,t)
 getC(bsol::Simulation{Q,W,L,G}, t::K) where {W<:ParametrizedVDomain,K<:Real,Q,G,L} = bsol.N(t)/bsol.domain.V(t)
 getC(bsol::Simulation{Q,W,L,G}, t::K) where {W<:ParametrizedTPDomain,K<:Real,Q,G,L} = bsol.domain.P(t)/(R*bsol.domain.T(t))
 getC(bsol::Simulation{Q,W,L,G}, t::K) where {W<:ConstantPDomain,K<:Real,Q,G,L} = bsol.domain.P/(R*getT(bsol,t))
@@ -230,17 +232,43 @@ this outputs a sparse matrix of  num reactions xnum species containing the produ
 rate of that species associated with that reaction
 """
 function rops(bsol::Q,t::X) where {Q<:Simulation,X<:Real}
-    ropmat = spzeros(length(bsol.domain.phase.reactions),length(bsol.domain.phase.species))
     cs,kfs,krevs = calcthermo(bsol.domain,bsol.sol(t),t)[[2,9,10]]
     V = getdomainsize(bsol,t)
-    @simd for i in 1:length(bsol.domain.phase.reactions)
-        rxn = bsol.domain.phase.reactions[i]
-        R = getrate(rxn,cs,kfs,krevs)*V
-        for ind in rxn.productinds
-            ropmat[i,ind] += R
+    if isa(bsol.domain,ConstantTrhoDomain)
+        ropmat = spzeros(length(bsol.domain.phase.reactions),length(bsol.domain.phase.species)+1)
+        numspcs = size(bsol.domain.rxnfluxarray)[1]
+        half = Int(numspcs/2)
+        @simd for i in 1:length(bsol.domain.phase.reactions)
+            rxn = bsol.domain.phase.reactions[i]
+            R = getrate(rxn,cs,kfs,krevs)*V
+            @views for ind in bsol.domain.rxnfluxarray[1:half,i]
+                if ind != 0
+                    ropmat[i,ind] -= R
+                    if !(ind in bsol.domain.solidindexes)
+                        ropmat[i,bsol.domain.indexes[3]] += R*bsol.domain.Mws[ind]
+                    end
+                end
+            end
+            @views for ind in bsol.domain.rxnfluxarray[half+1:end,i]
+                if ind != 0
+                    ropmat[i,ind] += R
+                    if !(ind in bsol.domain.solidindexes)
+                        ropmat[i,bsol.domain.indexes[3]] -= R*bsol.domain.Mws[ind]
+                    end
+                end
+            end
         end
-        for ind in rxn.reactantinds
-            ropmat[i,ind] -= R
+    else
+        ropmat = spzeros(length(bsol.domain.phase.reactions),length(bsol.domain.phase.species))
+        @simd for i in 1:length(bsol.domain.phase.reactions)
+            rxn = bsol.domain.phase.reactions[i]
+            R = getrate(rxn,cs,kfs,krevs)*V
+            for ind in rxn.productinds
+                ropmat[i,ind] += R
+            end
+            for ind in rxn.reactantinds
+                ropmat[i,ind] -= R
+            end
         end
     end
     return ropmat
@@ -435,11 +463,11 @@ based alternative algorithm is slower, but avoids this concern.
 """
 function getadjointsensitivities(bsol::Q,target::String,solver::W;sensalg::W2=InterpolatingAdjoint(autojacvec=ReverseDiffVJP(false)),
     abstol::Float64=1e-6,reltol::Float64=1e-3,normalize=true,kwargs...) where {Q,W,W2}
-    @assert target in bsol.names || target in ["T","V","P"]
+    @assert target in bsol.names || target in ["T","V","P","mass"]
 
     pethane = 160
 
-    if target in ["T","V","P"]
+    if target in ["T","V","P","mass"]
         if haskey(bsol.domain.thermovariabledict, target)
             ind = bsol.domain.thermovariabledict[target]
         else
@@ -511,13 +539,13 @@ function getadjointsensitivities(bsol::Q,target::String,solver::W;sensalg::W2=In
     dgdprevdiff(out, y, p, t) = ReverseDiff.gradient!(out, p -> g(y, p, t), p)
     
     if length(bsol.domain.p)<= pethane
-        if target in ["T","V","P"] || !isempty(bsol.interfaces)
+        if target in ["T","V","P","mass"] || !isempty(bsol.interfaces)
             du0,dpadj = adjoint_sensitivities(bsol.sol,solver,g,nothing,(dgdu,dgdp);sensealg=sensalg,abstol=abstol,reltol=reltol,kwargs...)
         else
             du0,dpadj = adjoint_sensitivities(bsol.sol,solver,sensg,nothing,(dsensgdu,dsensgdp);sensealg=sensalg,abstol=abstol,reltol=reltol,kwargs...)
         end
     else
-        if target in ["T","V","P"] || !isempty(bsol.interfaces)
+        if target in ["T","V","P","mass"] || !isempty(bsol.interfaces)
             du0,dpadj = adjoint_sensitivities(bsol.sol,solver,g,nothing,(dgdurevdiff,dgdprevdiff);sensealg=sensalg,abstol=abstol,reltol=reltol,kwargs...)
         else
             du0,dpadj = adjoint_sensitivities(bsol.sol,solver,sensg,nothing,(dsensgdurevdiff,dsensgdprevdiff);sensealg=sensalg,abstol=abstol,reltol=reltol,kwargs...)
@@ -525,9 +553,9 @@ function getadjointsensitivities(bsol::Q,target::String,solver::W;sensalg::W2=In
     end
     if normalize
         dpadj[length(bsol.domain.phase.species)+1:end] .*= bsol.domain.p[length(bsol.domain.phase.species)+1:end]
-        if !(target in ["T","V","P"]) && isempty(bsol.interfaces)
+        if !(target in ["T","V","P","mass"]) && isempty(bsol.interfaces)
             dpadj ./= bsol.sol(bsol.sol.t[end])[senstooriginspcind[ind]]
-        elseif !(target in ["T","V","P"]) && !isempty(bsol.interfaces)
+        elseif !(target in ["T","V","P","mass"]) && !isempty(bsol.interfaces)
             dpadj ./= bsol.sol(bsol.sol.t[end])[ind]
         end
     end
@@ -536,8 +564,8 @@ end
 
 function getadjointsensitivities(syssim::Q,bsol::W3,target::String,solver::W;sensalg::W2=InterpolatingAdjoint(autojacvec=ReverseDiffVJP(false)),
     abstol::Float64=1e-6,reltol::Float64=1e-3,normalize=true,kwargs...) where {Q,W,W2,W3}
-    @assert target in bsol.names || target in ["T","V","P"]
-    if target in ["T","V","P"]
+    @assert target in bsol.names || target in ["T","V","P","mass"]
+    if target in ["T","V","P","mass"]
         if haskey(bsol.domain.thermovariabledict, target)
             ind = bsol.domain.thermovariabledict[target]
         else
@@ -570,7 +598,7 @@ function getadjointsensitivities(syssim::Q,bsol::W3,target::String,solver::W;sen
         for domain in domains
            dpadj[domain.parameterindexes[1]+length(domain.phase.species):domain.parameterindexes[2]] .*= syssim.p[domain.parameterindexes[1]+length(domain.phase.species):domain.parameterindexes[2]]
         end
-        if !(target in ["T","V","P"])
+        if !(target in ["T","V","P","mass"])
             dpadj ./= bsol.sol(bsol.sol.t[end])[ind]
         end
     end
