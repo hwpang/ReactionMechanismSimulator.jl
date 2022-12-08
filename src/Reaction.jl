@@ -14,6 +14,7 @@ export AbstractReaction
     electronchange::Int64 = 0
     radicalchange::Int64 = -100
     reversible::Bool = true
+    forwardable::Bool = true
     pairs::V5 = @SArray [@SArray [""]]
 end
 export ElementaryReaction
