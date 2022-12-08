@@ -729,30 +729,11 @@ mutable struct ConstantTrhoDomain{N<:AbstractPhase,S<:Integer,W<:Real, W2<:Real,
     thermovariabledict::Dict{String,Int64}
     Mws::Array{Float64,1}
     fragmentindexes::Array{Int64,1}
-    kfdisabledinds::Array{Int64,1}
-    krevdisabledinds::Array{Int64,1}
     epsilon::Float64
     diffusionlength::Float64
 end
 
-function getkfkrevdisabledinds(phase, kf_disabled_fragment_based_reactions::Array{String,1}, krev_disabled_fragment_based_reactions::Array{String,1})
-    kfdisabledinds = Array{Int64,1}()
-    krevdisabledinds = Array{Int64,1}()
-    rxnstrs = getrxnstr.(phase.reactions)
-    for (rxnind,rxnstr) in enumerate(rxnstrs)
-                                                                                                        
-        if rxnstr in kf_disabled_fragment_based_reactions
-            push!(kfdisabledinds,rxnind)
-        end
-                                                                                                        
-        if rxnstr in krev_disabled_fragment_based_reactions
-            push!(krevdisabledinds,rxnind)
-        end
-    end
-    return kfdisabledinds, krevdisabledinds
-end
-
-function ConstantTrhoDomain(;phase::Z,initialconds::Dict{X,E},fragmentnames::Array{X3,1},fragment_based_reaction_mapping::Dict{X1,E1},kf_disabled_fragment_based_reactions::Array{String,1},krev_disabled_fragment_based_reactions::Array{String,1},epsilon::Float64=1.0,diffusionlength::Float64=Inf,constantspecies::Array{X4,1}=Array{String,1}(),
+function ConstantTrhoDomain(;phase::Z,initialconds::Dict{X,E},fragmentnames::Array{X3,1},fragment_based_reaction_mapping::Dict{X1,E1},epsilon::Float64=1.0,diffusionlength::Float64=Inf,constantspecies::Array{X4,1}=Array{String,1}(),
     sparse::Bool=false,sensitivity::Bool=false) where {X,E,X1,E1,X3,X4,Z<:AbstractPhase}
     #set conditions and initialconditions
     T = 0.0
@@ -811,13 +792,6 @@ function ConstantTrhoDomain(;phase::Z,initialconds::Dict{X,E},fragmentnames::Arr
     kfs,krevs = getkfkrevs(phase,T,P,C,N,ns,Gs,diffs,V,0.0)
     kfsnondiff = getkfs(phase,T,P,C,ns,V,0.0)
 
-    kfdisabledinds, krevdisabledinds = getkfkrevdisabledinds(phase, kf_disabled_fragment_based_reactions, krev_disabled_fragment_based_reactions)
-    for ind in kfdisabledinds
-        kfs[ind] = 0.0
-    end
-    for ind in krevdisabledinds
-        krevs[ind] = 0.0
-    end
     p = vcat(Gs,kfsnondiff)
     if sparse
         jacobian=zeros(typeof(T),length(phase.species),length(phase.species))
@@ -830,7 +804,7 @@ function ConstantTrhoDomain(;phase::Z,initialconds::Dict{X,E},fragmentnames::Arr
     fragmentindexes = sort([findfirst(x->x==name,spcnames) for name in fragmentnames])
 
     return ConstantTrhoDomain(phase,[phase.species[1].index,phase.species[end].index,phase.species[end].index+1],[1,length(phase.species)+length(phase.reactions)],constspcinds,
-        T,rho,A,kfs,krevs,kfsnondiff,efficiencyinds,Gs,fragmentbasedrxnarray,rxnarray,mu,diffs,jacobian,sensitivity,false,MVector(false),MVector(0.0),p,Dict("mass"=>phase.species[end].index+1),Mws,fragmentindexes,kfdisabledinds,krevdisabledinds,epsilon,diffusionlength), y0, p
+        T,rho,A,kfs,krevs,kfsnondiff,efficiencyinds,Gs,fragmentbasedrxnarray,rxnarray,mu,diffs,jacobian,sensitivity,false,MVector(false),MVector(0.0),p,Dict("mass"=>phase.species[end].index+1),Mws,fragmentindexes,epsilon,diffusionlength), y0, p
 end
 
 export ConstantTrhoDomain
@@ -1615,23 +1589,11 @@ function calcthermo(d::ConstantTrhoDomain{W,Y},y::J,t::Q,p::Q2=SciMLBase.NullPar
         elseif nothermochg
             d.kfsnondiff = p[d.parameterindexes[1]-1+length(d.phase.species)+1:d.parameterindexes[1]-1+length(d.phase.species)+length(d.phase.reactions)]
             d.kfs,d.krevs = getkfkrevs(d.phase,d.T,P,C,N,ns,d.Gs,d.diffusivity,V,0.0;kfs=d.kfsnondiff)
-            @simd for ind in d.kfdisabledinds
-                d.kfs[ind] = 0.0
-            end
-            @simd for ind in d.krevdisabledinds
-                d.krevs[ind] = 0.0
-            end
             return ns,cs,d.T,P,V,C,N,d.mu,d.kfs,d.krevs,Array{Float64,1}(),Array{Float64,1}(),Array{Float64,1}(),Array{Float64,1}(),0.0,Array{Float64,1}(),0.0
         else
             d.kfsnondiff = p[d.parameterindexes[1]-1+length(d.phase.species)+1:d.parameterindexes[1]-1+length(d.phase.species)+length(d.phase.reactions)]
             d.Gs = p[d.parameterindexes[1]-1+1:d.parameterindexes[1]-1+length(d.phase.species)]
             d.kfs,d.krevs = getkfkrevs(d.phase,d.T,P,C,N,ns,d.Gs,d.diffusivity,V,0.0;kfs=d.kfsnondiff)
-            @simd for ind in d.kfdisabledinds
-                d.kfs[ind] = 0.0
-            end
-            @simd for ind in d.krevdisabledinds
-                d.krevs[ind] = 0.0
-            end
             return ns,cs,d.T,P,V,C,N,d.mu,d.kfs,d.krevs,Array{Float64,1}(),Array{Float64,1}(),Array{Float64,1}(),Array{Float64,1}(),0.0,Array{Float64,1}(),0.0
         end
     else
@@ -1642,23 +1604,11 @@ function calcthermo(d::ConstantTrhoDomain{W,Y},y::J,t::Q,p::Q2=SciMLBase.NullPar
         elseif nothermochg
             d.kfsnondiff .= d.p[length(d.phase.species)+1:length(d.phase.species)+length(d.phase.reactions)].*p[d.parameterindexes[1]-1+length(d.phase.species)+1:d.parameterindexes[1]-1+length(d.phase.species)+length(d.phase.reactions)]
             d.kfs,d.krevs = getkfkrevs(d.phase,d.T,P,C,N,ns,d.Gs,d.diffusivity,V,0.0;kfs=d.kfsnondiff)
-            @simd for ind in d.kfdisabledinds
-                d.kfs[ind] = 0.0
-            end
-            @simd for ind in d.krevdisabledinds
-                d.krevs[ind] = 0.0
-            end
             return ns,cs,d.T,P,V,C,N,d.mu,d.kfs,d.krevs,Array{Float64,1}(),Array{Float64,1}(),Array{Float64,1}(),Array{Float64,1}(),0.0,Array{Float64,1}(),0.0
         else
             d.kfsnondiff .= d.p[length(d.phase.species)+1:length(d.phase.species)+length(d.phase.reactions)].*p[d.parameterindexes[1]-1+length(d.phase.species)+1:d.parameterindexes[1]-1+length(d.phase.species)+length(d.phase.reactions)]
             d.Gs .= d.p[1:length(d.phase.species)].+p[d.parameterindexes[1]-1+1:d.parameterindexes[1]-1+length(d.phase.species)]
             d.kfs,d.krevs = getkfkrevs(d.phase,d.T,P,C,N,ns,d.Gs,d.diffusivity,V,0.0;kfs=d.kfsnondiff)
-            @simd for ind in d.kfdisabledinds
-                d.kfs[ind] = 0.0
-            end
-            @simd for ind in d.krevdisabledinds
-                d.krevs[ind] = 0.0
-            end
             return ns,cs,d.T,P,V,C,N,d.mu,d.kfs,d.krevs,Array{Float64,1}(),Array{Float64,1}(),Array{Float64,1}(),Array{Float64,1}(),0.0,Array{Float64,1}(),0.0
         end
     end
@@ -1681,12 +1631,6 @@ function calcthermo(d::ConstantTrhoDomain{W,Y},y::Array{W2,1},t::Q,p::Q2=SciMLBa
         kfsnondiff = convert(typeof(y),d.p[length(d.phase.species)+1:end].*p[d.parameterindexes[1]-1+length(d.phase.species)+1:d.parameterindexes[1]-1+length(d.phase.species)+length(d.phase.reactions)])
     end
     kfs,krevs = getkfkrevs(d.phase,d.T,P,C,N,ns,Gs,d.diffusivity,V,0.0;kfs=kfsnondiff)
-    @simd for ind in d.kfdisabledinds
-        kfs[ind] = 0.0
-    end
-    @simd for ind in d.krevdisabledinds
-        krevs[ind] = 0.0
-    end
     return ns,cs,d.T,P,V,C,N,d.mu,kfs,krevs,Array{Float64,1}(),Array{Float64,1}(),Array{Float64,1}(),Array{Float64,1}(),0.0,Array{Float64,1}(),0.0
 end
 
@@ -1706,12 +1650,6 @@ function calcthermo(d::ConstantTrhoDomain{W,Y},y::J,t::Q,p::Q2=SciMLBase.NullPar
         kfsnondiff = d.p[length(d.phase.species)+1:end].*p[d.parameterindexes[1]-1+length(d.phase.species)+1:d.parameterindexes[1]-1+length(d.phase.species)+length(d.phase.reactions)]
     end
     kfs,krevs = getkfkrevs(d.phase,d.T,P,C,N,ns,Gs,d.diffusivity,V,0.0;kfs=kfsnondiff)
-    @simd for ind in d.kfdisabledinds
-        kfs[ind] = 0.0
-    end
-    @simd for ind in d.krevdisabledinds
-        krevs[ind] = 0.0
-    end
     return ns,cs,d.T,P,V,C,N,d.mu,kfs,krevs,Array{Float64,1}(),Array{Float64,1}(),Array{Float64,1}(),Array{Float64,1}(),0.0,Array{Float64,1}(),0.0
 end
 
