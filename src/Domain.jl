@@ -703,7 +703,7 @@ function ConstantTAPhiDomain(;phase::E2,initialconds::Dict{X,X2},constantspecies
 end
 export ConstantTAPhiDomain
 
-mutable struct ConstantTrhoDomain{N<:AbstractPhase,S<:Integer,W<:Real, W2<:Real, I<:Integer, Q<:AbstractArray,K1,V1} <: AbstractConstantKDomain
+mutable struct ConstantTrhoDomain{N<:AbstractPhase,S<:Integer,W<:Real, W2<:Real, I<:Integer, Q<:AbstractArray} <: AbstractConstantKDomain
     phase::N
     indexes::Q #assumed to be in ascending order
     parameterindexes::Q
@@ -716,7 +716,7 @@ mutable struct ConstantTrhoDomain{N<:AbstractPhase,S<:Integer,W<:Real, W2<:Real,
     kfsnondiff::Array{W,1}
     efficiencyinds::Array{I,1}
     Gs::Array{W,1}
-    rxnfluxarray::Array{Int64,2}
+    fragmentbasedrxnarray::Array{Int64,2}
     rxnarray::Array{Int64,2}
     mu::W
     diffusivity::Array{W,1}
@@ -727,16 +727,32 @@ mutable struct ConstantTrhoDomain{N<:AbstractPhase,S<:Integer,W<:Real, W2<:Real,
     t::MArray{Tuple{1},W2,1,1}
     p::Array{W,1}
     thermovariabledict::Dict{String,Int64}
-    fluxmapping::Dict{K1,V1}
     Mws::Array{Float64,1}
-    solidindexes::Array{Int64,1}
+    fragmentindexes::Array{Int64,1}
     kfdisabledinds::Array{Int64,1}
     krevdisabledinds::Array{Int64,1}
     epsilon::Float64
     diffusionlength::Float64
 end
 
-function ConstantTrhoDomain(;phase::Z,initialconds::Dict{X,E},fluxmapping::Dict{X1,E1},solidspecies::Array{X3,1},kfdisabledinds::Array{Int64,1}=Array{Int64,1}(),krevdisabledinds::Array{Int64,1}=Array{Int64,1}(),epsilon::Float64=1.0,diffusionlength::Float64=Inf,constantspecies::Array{X4,1}=Array{String,1}(),
+function getkfkrevdisabledinds(phase, kf_disabled_fragment_based_reactions::Array{String,1}, krev_disabled_fragment_based_reactions::Array{String,1})
+    kfdisabledinds = Array{Int64,1}()
+    krevdisabledinds = Array{Int64,1}()
+    rxnstrs = getrxnstr.(phase.reactions)
+    for (rxnind,rxnstr) in enumerate(rxnstrs)
+                                                                                                        
+        if rxnstr in kf_disabled_fragment_based_reactions
+            push!(kfdisabledinds,rxnind)
+        end
+                                                                                                        
+        if rxnstr in krev_disabled_fragment_based_reactions
+            push!(krevdisabledinds,rxnind)
+        end
+    end
+    return kfdisabledinds, krevdisabledinds
+end
+
+function ConstantTrhoDomain(;phase::Z,initialconds::Dict{X,E},fragmentnames::Array{X3,1},fragment_based_reaction_mapping::Dict{X1,E1},kf_disabled_fragment_based_reactions::Array{String,1},krev_disabled_fragment_based_reactions::Array{String,1},epsilon::Float64=1.0,diffusionlength::Float64=Inf,constantspecies::Array{X4,1}=Array{String,1}(),
     sparse::Bool=false,sensitivity::Bool=false) where {X,E,X1,E1,X3,X4,Z<:AbstractPhase}
     #set conditions and initialconditions
     T = 0.0
@@ -794,7 +810,8 @@ function ConstantTrhoDomain(;phase::Z,initialconds::Dict{X,E},fluxmapping::Dict{
     C = N/V
     kfs,krevs = getkfkrevs(phase,T,P,C,N,ns,Gs,diffs,V,0.0)
     kfsnondiff = getkfs(phase,T,P,C,ns,V,0.0)
-                                                                                                    
+
+    kfdisabledinds, krevdisabledinds = getkfkrevdisabledinds(phase, kf_disabled_fragment_based_reactions, krev_disabled_fragment_based_reactions)
     for ind in kfdisabledinds
         kfs[ind] = 0.0
     end
@@ -807,13 +824,13 @@ function ConstantTrhoDomain(;phase::Z,initialconds::Dict{X,E},fluxmapping::Dict{
     else
         jacobian=zeros(typeof(T),length(phase.species),length(phase.species))
     end
-    rxnfluxarray = getreactionindices(phase,fluxmapping)
+    fragmentbasedrxnarray = getreactionindices(phase,fragment_based_reaction_mapping)
     rxnarray  = getreactionindices(phase)
     Mws = getfield.(phase.species,:molecularweight)
-    solidindexes = sort([findfirst(x->x==name,spcnames) for name in solidspecies])
+    fragmentindexes = sort([findfirst(x->x==name,spcnames) for name in fragmentnames])
 
     return ConstantTrhoDomain(phase,[phase.species[1].index,phase.species[end].index,phase.species[end].index+1],[1,length(phase.species)+length(phase.reactions)],constspcinds,
-        T,rho,A,kfs,krevs,kfsnondiff,efficiencyinds,Gs,rxnfluxarray,rxnarray,mu,diffs,jacobian,sensitivity,false,MVector(false),MVector(0.0),p,Dict("mass"=>phase.species[end].index+1),fluxmapping,Mws,solidindexes,kfdisabledinds,krevdisabledinds,epsilon,diffusionlength), y0, p
+        T,rho,A,kfs,krevs,kfsnondiff,efficiencyinds,Gs,fragmentbasedrxnarray,rxnarray,mu,diffs,jacobian,sensitivity,false,MVector(false),MVector(0.0),p,Dict("mass"=>phase.species[end].index+1),Mws,fragmentindexes,kfdisabledinds,krevdisabledinds,epsilon,diffusionlength), y0, p
 end
 
 export ConstantTrhoDomain
@@ -3315,22 +3332,61 @@ function getreactionindices(ig::Q) where {Q<:AbstractPhase}
     return deepcopy(ig.rxnarray)
 end
 
-function getreactionindices(phase::IdealDiluteSolution,fluxmapping::Dict{K1,V1}) where {Q<:AbstractPhase,K1,V1,K2,V2}
-    spcnummax = 0
-    for rxnind in keys(fluxmapping)
-        spcnummax = max(length.(values(fluxmapping[rxnind]))...) > spcnummax ? max(length.(values(fluxmapping[rxnind]))...) : spcnummax
+function getreactionindices(phase::IdealDiluteSolution,fragment_based_reaction_mapping::Dict{K1,V1}) where {Q<:AbstractPhase,K1,V1,K2,V2}
+    maxnumspc = 0
+    for rxn in phase.reactions
+        rxnstr = getrxnstr(rxn)
+        spc_fragment_mapping = fragment_based_reaction_mapping[rxnstr]
+        numr = 0
+        for spc in rxn.reactants
+            if spc.name in keys(spc_fragment_mapping)
+                numr += length(spc_fragment_mapping[spc.name])
+            else
+                numr += 1
+            end
+        end
+        nump = 0
+        for spc in rxn.products
+            if spc.name in keys(spc_fragment_mapping)
+                nump += length(spc_fragment_mapping[spc.name])
+            else
+                nump += 1
+            end
+        end
+        maxnumspc = max(maxnumspc,max(numr,nump))
     end
 
-    rxnfluxarray = zeros(Int64,(spcnummax*2,length(phase.reactions)))
-    for i in 1:size(phase.rxnarray)[2]
-        reactantinds = collect(Iterators.flatten([fluxmapping[i][ind] for ind in phase.rxnarray[1:4,i] if ind !=0]))
-        rxnfluxarray[1:length(reactantinds),i] = reactantinds
+    fragmentbasedrxnarray = zeros(Int64,(maxnumspc*2,length(phase.reactions)))
+    spcnames = getfield.(phase.species,:name)
+    for (rxnind,rxn) in enumerate(phase.reactions)
+        rxnstr = getrxnstr(rxn)
+        spc_fragment_mapping = fragment_based_reaction_mapping[rxnstr]
 
-        productinds = collect(Iterators.flatten([fluxmapping[i][ind] for ind in phase.rxnarray[4:8,i] if ind !=0]))
-        rxnfluxarray[spcnummax+1:spcnummax+length(productinds),i] = productinds
+        reactantinds = Array{Int64,1}()
+        for spc in rxn.reactants
+            if spc.name in keys(spc_fragment_mapping)
+                for fragment in spc_fragment_mapping[spc.name]
+                    push!(reactantinds,findfirst(x->x==fragment,spcnames))
+                end
+            else
+                push!(reactantinds,findfirst(x->x==spc.name,spcnames))
+            end
+        end
+        fragmentbasedrxnarray[1:length(reactantinds),rxnind] = reactantinds
+
+        productinds = Array{Int64,1}()
+        for spc in rxn.products
+            if spc.name in keys(spc_fragment_mapping)
+                for fragment in spc_fragment_mapping[spc.name]
+                    push!(productinds,findfirst(x->x==fragment,spcnames))
+                end
+            else
+                push!(productinds,findfirst(x->x==spc.name,spcnames))
+            end
+        end
+        fragmentbasedrxnarray[maxnumspc+1:maxnumspc+length(productinds),rxnind] = productinds
     end
-
-    return rxnfluxarray
+    return fragmentbasedrxnarray
 end
 
 export getreactionindices

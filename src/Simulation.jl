@@ -236,23 +236,23 @@ function rops(bsol::Q,t::X) where {Q<:Simulation,X<:Real}
     V = getdomainsize(bsol,t)
     if isa(bsol.domain,ConstantTrhoDomain)
         ropmat = spzeros(length(bsol.domain.phase.reactions),length(bsol.domain.phase.species)+1)
-        numspcs = size(bsol.domain.rxnfluxarray)[1]
+        numspcs = size(bsol.domain.fragmentbasedrxnarray)[1]
         half = Int(numspcs/2)
         @simd for i in 1:length(bsol.domain.phase.reactions)
             rxn = bsol.domain.phase.reactions[i]
             R = getrate(rxn,cs,kfs,krevs)*V
-            @views for ind in bsol.domain.rxnfluxarray[1:half,i]
+            @views for ind in bsol.domain.fragmentbasedrxnarray[1:half,i]
                 if ind != 0
                     ropmat[i,ind] -= R
-                    if !(ind in bsol.domain.solidindexes)
+                    if !(ind in bsol.domain.fragmentindexes)
                         ropmat[i,bsol.domain.indexes[3]] += R*bsol.domain.Mws[ind]
                     end
                 end
             end
-            @views for ind in bsol.domain.rxnfluxarray[half+1:end,i]
+            @views for ind in bsol.domain.fragmentbasedrxnarray[half+1:end,i]
                 if ind != 0
                     ropmat[i,ind] += R
-                    if !(ind in bsol.domain.solidindexes)
+                    if !(ind in bsol.domain.fragmentindexes)
                         ropmat[i,bsol.domain.indexes[3]] -= R*bsol.domain.Mws[ind]
                     end
                 end
