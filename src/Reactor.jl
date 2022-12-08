@@ -108,13 +108,13 @@ function Reactor(domains::T,y0s::W1,tspan::W2,interfaces::Z=Tuple(),ps::X=SciMLB
             domain.thermovariabledict[thermovar] += k-1
         end
         if isa(domain,ConstantTrhoDomain)
-            for i = 1:size(domain.rxnfluxarray)[1], j = 1:size(domain.rxnfluxarray)[2]
-                if domain.rxnfluxarray[i,j] != 0
-                    domain.rxnfluxarray[i,j] += k-1
+            for i = 1:size(domain.fragmentbasedrxnarray)[1], j = 1:size(domain.fragmentbasedrxnarray)[2]
+                if domain.fragmentbasedrxnarray[i,j] != 0
+                    domain.fragmentbasedrxnarray[i,j] += k-1
                 end
             end
-            for i in 1:length(domain.solidindexes)
-                domain.solidindexes[i] += k-1
+            for i in 1:length(domain.fragmentindexes)
+                domain.fragmentindexes[i] += k-1
             end
         end
         domain.indexes[1] = k
@@ -485,8 +485,8 @@ export getrates
     end
 end
 
-function addreactionratecontributions!(dydt::Q,rxnfluxarray::Array{W2,2},rxnarray::Array{Int64,2},cs::W,kfs::Z,krevs::Y,massindex::Int64,Mws::Array{Float64,1},solidindexes::Array{Int64,1}) where {Q,Z,Y,T,W,W2}
-    (numspcs,numrxns) = size(rxnfluxarray)
+function addreactionratecontributions!(dydt::Q,fragmentbasedrxnarray::Array{W2,2},rxnarray::Array{Int64,2},cs::W,kfs::Z,krevs::Y,massindex::Int64,Mws::Array{Float64,1},fragmentindexes::Array{Int64,1}) where {Q,Z,Y,T,W,W2}
+    (numspcs,numrxns) = size(fragmentbasedrxnarray)
     half = Int(numspcs/2)
     for i = 1:numrxns
 
@@ -513,19 +513,19 @@ function addreactionratecontributions!(dydt::Q,rxnfluxarray::Array{W2,2},rxnarra
         @fastmath R = fR - rR
 
         for j = 1:half
-            if rxnfluxarray[j,i] != 0
-                @fastmath dydt[rxnfluxarray[j,i]] -= R
-                if !(rxnfluxarray[j,i] in solidindexes)
-                    dydt[massindex] += R * Mws[rxnfluxarray[j,i]]
+            if fragmentbasedrxnarray[j,i] != 0
+                @fastmath dydt[fragmentbasedrxnarray[j,i]] -= R
+                if !(fragmentbasedrxnarray[j,i] in fragmentindexes)
+                    dydt[massindex] += R * Mws[fragmentbasedrxnarray[j,i]]
                 end
             end
         end
 
         for j = half+1:numspcs
-            if rxnfluxarray[j,i] != 0
-                @fastmath dydt[rxnfluxarray[j,i]] += R
-                if !(rxnfluxarray[j,i] in solidindexes)
-                    dydt[massindex] -= R * Mws[rxnfluxarray[j,i]]
+            if fragmentbasedrxnarray[j,i] != 0
+                @fastmath dydt[fragmentbasedrxnarray[j,i]] += R
+                if !(fragmentbasedrxnarray[j,i] in fragmentindexes)
+                    dydt[massindex] -= R * Mws[fragmentbasedrxnarray[j,i]]
                 end
             end
         end
@@ -642,7 +642,7 @@ function dydtreactor!(dydt::RC,y::U,t::Z,domain::ConstantTrhoDomain{W,Y},interfa
     dydt .= 0.0
     massindex = domain.indexes[3]
     ns,cs,T,P,V,C,N,mu,kfs,krevs,Hs,Us,Gs,diffs,Cvave,cpdivR = calcthermo(domain,y,t,p)
-    addreactionratecontributions!(dydt,domain.rxnfluxarray,domain.rxnarray,cs,kfs,krevs,massindex,domain.Mws,domain.solidindexes)
+    addreactionratecontributions!(dydt,domain.fragmentbasedrxnarray,domain.rxnarray,cs,kfs,krevs,massindex,domain.Mws,domain.fragmentindexes)
     if V/domain.A < domain.diffusionlength
         dydt .*= V
     else
@@ -696,7 +696,7 @@ end
     vphi[1] = phi
     if isa(domain,ConstantTrhoDomain)
         Mwstot[domain.indexes[1]:domain.indexes[2]] .= domain.Mws
-        addreactionratecontributions!(dydt,domain.rxnfluxarray,domain.rxnarray,cstot,kfs,krevs,domain.indexes[3],Mwstot,domain.solidindexes)
+        addreactionratecontributions!(dydt,domain.fragmentbasedrxnarray,domain.rxnarray,cstot,kfs,krevs,domain.indexes[3],Mwstot,domain.fragmentindexes)
         if V/domain.A < domain.diffusionlength
             @views dydt[domain.indexes[1]:domain.indexes[end]] .*= V
         else
@@ -712,7 +712,7 @@ end
         cstot[domain.indexes[1]:domain.indexes[2]] .= vcs[k]
         if isa(domain,ConstantTrhoDomain)
             Mwstot[domain.indexes[1]:domain.indexes[2]] .= domain.Mws
-            addreactionratecontributions!(dydt,domain.rxnfluxarray,domain.rxnarray,cstot,vkfs[k],vkrevs[k],domain.indexes[3],Mwstot,domain.solidindexes)
+            addreactionratecontributions!(dydt,domain.fragmentbasedrxnarray,domain.rxnarray,cstot,vkfs[k],vkrevs[k],domain.indexes[3],Mwstot,domain.fragmentindexes)
             if vV[k]/domain.A < domain.diffusionlength
                 @views dydt[domain.indexes[1]:domain.indexes[end]] .*= vV[k]
             else
