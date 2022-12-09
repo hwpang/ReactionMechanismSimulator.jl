@@ -729,20 +729,27 @@ mutable struct ConstantTrhoDomain{N<:AbstractPhase,S<:Integer,W<:Real, W2<:Real,
     thermovariabledict::Dict{String,Int64}
     Mws::Array{Float64,1}
     fragmentindexes::Array{Int64,1}
+    fragmentbasedspcnames::Array{String,1}
+    spcnames::Array{String,1}
     epsilon::Float64
     diffusionlength::Float64
 end
 
 function ConstantTrhoDomain(;phase::Z,initialconds::Dict{X,E},fragmentnames::Array{X3,1},fragment_based_reaction_mapping::Dict{X1,E1},epsilon::Float64=1.0,diffusionlength::Float64=Inf,constantspecies::Array{X4,1}=Array{String,1}(),
     sparse::Bool=false,sensitivity::Bool=false) where {X,E,X1,E1,X3,X4,Z<:AbstractPhase}
-    #set conditions and initialconditions
+
     T = 0.0
     rho = 0.0
     mass = 0.0
     P = 1.0e8
     A = 0.0
-    y0 = zeros(length(phase.species)+1) #track mass
-    spcnames = getfield.(phase.species,:name)
+
+    fragmentbasedrxnarray, rxnarray, fragmentbasedspcnames, spcnames = getreactionindices(phase,fragment_based_reaction_mapping)
+    # fragmentbasedspcnames contains the species that are broken into fragments. They are only used to calculate Kcs and we don't need to solve for them.
+    # spcnames contains the species names that we need to solve for.
+
+    y0 = zeros(length(spcnames)+1) #track mass
+
     for (key,val) in initialconds
         if key == "T"
             T = val
@@ -756,6 +763,7 @@ function ConstantTrhoDomain(;phase::Z,initialconds::Dict{X,E},fragmentnames::Arr
             mass = val
             y0[end] = val
         else
+            @assert !(key in fragmentbasedspcnames) "$key is a fragment-based species, cannot be specified in initial conditions"
             ind = findfirst(isequal(key),spcnames)
             @assert typeof(ind)<: Integer  "$key not found in species list: $spcnames"
             y0[ind] = val
@@ -771,6 +779,9 @@ function ConstantTrhoDomain(;phase::Z,initialconds::Dict{X,E},fragmentnames::Arr
     V = mass/rho
 
     if length(constantspecies) > 0
+        for spc in constantspecies
+            @assert !(spc in fragmentbasedspcnames) "$spc is a fragment-based species, cannot be specified in constantspecies"
+        end
         constspcinds = [findfirst(isequal(k),spcnames) for k in constantspecies]
     else
         constspcinds = Array{Int64,1}()
@@ -798,13 +809,11 @@ function ConstantTrhoDomain(;phase::Z,initialconds::Dict{X,E},fragmentnames::Arr
     else
         jacobian=zeros(typeof(T),length(phase.species),length(phase.species))
     end
-    fragmentbasedrxnarray = getreactionindices(phase,fragment_based_reaction_mapping)
-    rxnarray  = getreactionindices(phase)
-    Mws = getfield.(phase.species,:molecularweight)
+    Mws = [spc.molecularweight for spc in phase.species if spc.name in spcnames]
     fragmentindexes = sort([findfirst(x->x==name,spcnames) for name in fragmentnames])
 
-    return ConstantTrhoDomain(phase,[phase.species[1].index,phase.species[end].index,phase.species[end].index+1],[1,length(phase.species)+length(phase.reactions)],constspcinds,
-        T,rho,A,kfs,krevs,kfsnondiff,efficiencyinds,Gs,fragmentbasedrxnarray,rxnarray,mu,diffs,jacobian,sensitivity,false,MVector(false),MVector(0.0),p,Dict("mass"=>phase.species[end].index+1),Mws,fragmentindexes,epsilon,diffusionlength), y0, p
+    return ConstantTrhoDomain(phase,[1,length(spcnames),length(spcnames)+1],[1,length(phase.species)+length(phase.reactions)],constspcinds,
+        T,rho,A,kfs,krevs,kfsnondiff,efficiencyinds,Gs,fragmentbasedrxnarray,rxnarray,mu,diffs,jacobian,sensitivity,false,MVector(false),MVector(0.0),p,Dict("mass"=>length(spcnames)+1),Mws,fragmentindexes,fragmentbasedspcnames,spcnames,epsilon,diffusionlength), y0, p
 end
 
 export ConstantTrhoDomain
@@ -3271,7 +3280,9 @@ function getreactionindices(ig::Q) where {Q<:AbstractPhase}
 end
 
 function getreactionindices(phase::IdealDiluteSolution,fragment_based_reaction_mapping::Dict{K1,V1}) where {Q<:AbstractPhase,K1,V1,K2,V2}
+    # find maximum number of species in fragment-based reaction and names of fragment-based species
     maxnumspc = 0
+    fragmentbasedspcnames = Array{String,1}()
     for rxn in phase.reactions
         rxnstr = getrxnstr(rxn)
         spc_fragment_mapping = fragment_based_reaction_mapping[rxnstr]
@@ -3279,6 +3290,7 @@ function getreactionindices(phase::IdealDiluteSolution,fragment_based_reaction_m
         for spc in rxn.reactants
             if spc.name in keys(spc_fragment_mapping)
                 numr += length(spc_fragment_mapping[spc.name])
+                push!(fragmentbasedspcnames,spc.name)
             else
                 numr += 1
             end
@@ -3287,6 +3299,7 @@ function getreactionindices(phase::IdealDiluteSolution,fragment_based_reaction_m
         for spc in rxn.products
             if spc.name in keys(spc_fragment_mapping)
                 nump += length(spc_fragment_mapping[spc.name])
+                push!(fragmentbasedspcnames,spc.name)
             else
                 nump += 1
             end
@@ -3295,36 +3308,47 @@ function getreactionindices(phase::IdealDiluteSolution,fragment_based_reaction_m
     end
 
     fragmentbasedrxnarray = zeros(Int64,(maxnumspc*2,length(phase.reactions)))
+    rxnarray = zeros(Int64,(8,length(phase.reactions)))
+
     spcnames = getfield.(phase.species,:name)
+    spcnames = spcnames[(!in).(spcnames,Ref(fragmentbasedspcnames))] # remove fragment-based species from spcnames
+
     for (rxnind,rxn) in enumerate(phase.reactions)
         rxnstr = getrxnstr(rxn)
         spc_fragment_mapping = fragment_based_reaction_mapping[rxnstr]
 
+        fragment_based_reactantinds = Array{Int64,1}()
         reactantinds = Array{Int64,1}()
         for spc in rxn.reactants
             if spc.name in keys(spc_fragment_mapping)
                 for fragment in spc_fragment_mapping[spc.name]
-                    push!(reactantinds,findfirst(x->x==fragment,spcnames))
+                    push!(fragment_based_reactantinds,findfirst(x->x==fragment,spcnames))
                 end
             else
+                push!(fragment_based_reactantinds,findfirst(x->x==spc.name,spcnames))
                 push!(reactantinds,findfirst(x->x==spc.name,spcnames))
             end
         end
-        fragmentbasedrxnarray[1:length(reactantinds),rxnind] = reactantinds
+        fragmentbasedrxnarray[1:length(fragment_based_reactantinds),rxnind] = fragment_based_reactantinds
+        rxnarray[1:length(reactantinds),rxnind] = reactantinds
 
+        fragment_based_productinds = Array{Int64,1}()
         productinds = Array{Int64,1}()
         for spc in rxn.products
             if spc.name in keys(spc_fragment_mapping)
                 for fragment in spc_fragment_mapping[spc.name]
-                    push!(productinds,findfirst(x->x==fragment,spcnames))
+                    push!(fragment_based_productinds,findfirst(x->x==fragment,spcnames))
                 end
             else
+                push!(fragment_based_productinds,findfirst(x->x==spc.name,spcnames))
                 push!(productinds,findfirst(x->x==spc.name,spcnames))
             end
         end
-        fragmentbasedrxnarray[maxnumspc+1:maxnumspc+length(productinds),rxnind] = productinds
+        fragmentbasedrxnarray[maxnumspc+1:maxnumspc+length(fragment_based_productinds),rxnind] = fragment_based_productinds
+        rxnarray[5:4+length(productinds),rxnind] = productinds
     end
-    return fragmentbasedrxnarray
+
+    return fragmentbasedrxnarray, rxnarray, fragmentbasedspcnames, spcnames
 end
 
 export getreactionindices
@@ -3369,26 +3393,26 @@ export getreactionindices
     for (i, rxnind) in enumerate(sensrxninds)
         rxn = domain.phase.reactions[rxnind]
         reactants = Array{Species,1}()
-        reactantinds = Array{Int64,1}()
+        fragment_based_reactantinds = Array{Int64,1}()
         @simd for reactant in rxn.reactants
             ind = findfirst(isequal(reactant.name),sensspcnames)
             @inbounds push!(reactants,sensspcs[ind])
-            push!(reactantinds,ind)
+            push!(fragment_based_reactantinds,ind)
         end
         products = Array{Species,1}()
-        productinds = Array{Int64,1}()
+        fragment_based_productinds = Array{Int64,1}()
         @simd for product in rxn.products
             ind = findfirst(isequal(product.name),sensspcnames)
             @inbounds push!(products,sensspcs[ind])
-            push!(productinds,ind)
+            push!(fragment_based_productinds,ind)
         end
 
         @inbounds sensrxns[i] = ElementaryReaction(
             index=i,
             reactants=SVector(reactants...),
-            reactantinds=MVector(reactantinds...),
+            fragment_based_reactantinds=MVector(fragment_based_reactantinds...),
             products=SVector(products...),
-            productinds=MVector(productinds...),
+            fragment_based_productinds=MVector(fragment_based_productinds...),
             kinetics=rxn.kinetics,
             radicalchange=rxn.radicalchange,
             pairs=rxn.pairs

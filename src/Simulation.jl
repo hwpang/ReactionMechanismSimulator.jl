@@ -235,12 +235,12 @@ function rops(bsol::Q,t::X) where {Q<:Simulation,X<:Real}
     cs,kfs,krevs = calcthermo(bsol.domain,bsol.sol(t),t)[[2,9,10]]
     V = getdomainsize(bsol,t)
     if isa(bsol.domain,ConstantTrhoDomain)
-        ropmat = spzeros(length(bsol.domain.phase.reactions),length(bsol.domain.phase.species)+1)
+        ropmat = spzeros(length(bsol.domain.phase.reactions),length(bsol.domain.spcnames)+1)
         numspcs = size(bsol.domain.fragmentbasedrxnarray)[1]
         half = Int(numspcs/2)
+        rates = getrates(bsol.domain.rxnarray,cs,kfs,krevs)*V
         @simd for i in 1:length(bsol.domain.phase.reactions)
-            rxn = bsol.domain.phase.reactions[i]
-            R = getrate(rxn,cs,kfs,krevs)*V
+            R = rates[i]
             @views for ind in bsol.domain.fragmentbasedrxnarray[1:half,i]
                 if ind != 0
                     ropmat[i,ind] -= R
