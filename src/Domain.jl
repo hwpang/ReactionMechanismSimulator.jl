@@ -731,11 +731,10 @@ mutable struct ConstantTrhoDomain{N<:AbstractPhase,S<:Integer,W<:Real, W2<:Real,
     fragmentindexes::Array{Int64,1}
     fragmentbasedspcnames::Array{String,1}
     spcnames::Array{String,1}
-    epsilon::Float64
     diffusionlength::Float64
 end
 
-function ConstantTrhoDomain(;phase::Z,initialconds::Dict{X,E},fragmentnames::Array{X3,1},fragment_based_reaction_mapping::Dict{X1,E1},epsilon::Float64=1.0,diffusionlength::Float64=Inf,constantspecies::Array{X4,1}=Array{String,1}(),
+function ConstantTrhoDomain(;phase::Z,initialconds::Dict{X,E},fragmentnames::Array{X3,1},fragment_based_reaction_mapping::Dict{X1,E1},diffusionlength::Float64=Inf,constantspecies::Array{X4,1}=Array{String,1}(),
     sparse::Bool=false,sensitivity::Bool=false) where {X,E,X1,E1,X3,X4,Z<:AbstractPhase}
 
     T = 0.0
@@ -813,7 +812,7 @@ function ConstantTrhoDomain(;phase::Z,initialconds::Dict{X,E},fragmentnames::Arr
     fragmentindexes = sort([findfirst(x->x==name,spcnames) for name in fragmentnames])
 
     return ConstantTrhoDomain(phase,[1,length(spcnames),length(spcnames)+1],[1,length(phase.species)+length(phase.reactions)],constspcinds,
-        T,rho,A,kfs,krevs,kfsnondiff,efficiencyinds,Gs,fragmentbasedrxnarray,rxnarray,mu,diffs,jacobian,sensitivity,false,MVector(false),MVector(0.0),p,Dict("mass"=>length(spcnames)+1),Mws,fragmentindexes,fragmentbasedspcnames,spcnames,epsilon,diffusionlength), y0, p
+        T,rho,A,kfs,krevs,kfsnondiff,efficiencyinds,Gs,fragmentbasedrxnarray,rxnarray,mu,diffs,jacobian,sensitivity,false,MVector(false),MVector(0.0),p,Dict("mass"=>length(spcnames)+1),Mws,fragmentindexes,fragmentbasedspcnames,spcnames,diffusionlength), y0, p
 end
 
 export ConstantTrhoDomain
