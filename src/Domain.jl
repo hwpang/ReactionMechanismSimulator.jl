@@ -3321,9 +3321,11 @@ function getreactionindices(phase::IdealDiluteSolution,fragment_based_reaction_m
         for spc in rxn.reactants
             if spc.name in keys(spc_fragment_mapping)
                 for fragment in spc_fragment_mapping[spc.name]
+                    @assert fragment in spcnames "Fragment $(fragment) not found in spcnames $(spcnames)"
                     push!(fragment_based_reactantinds,findfirst(x->x==fragment,spcnames))
                 end
             else
+                @assert spc.name in spcnames "Species $(spc.name) not found in spcnames $(spcnames)"
                 push!(fragment_based_reactantinds,findfirst(x->x==spc.name,spcnames))
                 push!(reactantinds,findfirst(x->x==spc.name,spcnames))
             end
@@ -3336,9 +3338,11 @@ function getreactionindices(phase::IdealDiluteSolution,fragment_based_reaction_m
         for spc in rxn.products
             if spc.name in keys(spc_fragment_mapping)
                 for fragment in spc_fragment_mapping[spc.name]
+                    @assert fragment in spcnames "Fragment $(fragment) not found in spcnames $(spcnames)"
                     push!(fragment_based_productinds,findfirst(x->x==fragment,spcnames))
                 end
             else
+                @assert spc.name in spcnames "Species $(spc.name) not found in spcnames $(spcnames)"
                 push!(fragment_based_productinds,findfirst(x->x==spc.name,spcnames))
                 push!(productinds,findfirst(x->x==spc.name,spcnames))
             end
