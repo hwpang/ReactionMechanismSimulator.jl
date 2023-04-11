@@ -427,13 +427,13 @@ function rops!(ropmat,rarray,fragmentbasedrxnarray,cs,kfs,krevs,V,start)
         
         for j = 1:half
             if fragmentbasedrxnarray[j,i] != 0
-                @fastmath ropmat[fragmentbasedrxnarray[j,i]] -= R
+                @fastmath ropmat[i+start,fragmentbasedrxnarray[j,i]] -= R
             end
         end
 
         for j = half+1:numfragmentbasedreacprod
             if fragmentbasedrxnarray[j,i] != 0
-                @fastmath ropmat[fragmentbasedrxnarray[j,i]] += R
+                @fastmath ropmat[i+start,fragmentbasedrxnarray[j,i]] += R
             end
         end
     end
