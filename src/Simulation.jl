@@ -271,7 +271,11 @@ function rops(ssys::SystemSimulation,t)
     vdiffs = Array{Any,1}(undef,length(domains))
     vCvave = Array{Any,1}(undef,length(domains))
     vphi = Array{Any,1}(undef,length(domains))
-    ropmat = spzeros(Nrxns,Nspcs)
+    if any([domain isa FragmentBasedConstantTrhoDomain for domain in domains])
+        ropmat = spzeros(Nrxns,Nspcs+1)
+    else
+        ropmat = spzeros(Nrxns,Nspcs)
+    end
     start = 0
     for (k,sim) in enumerate(ssys.sims)
         vns[k],vcs[k],vT[k],vP[k],vV[k],vC[k],vN[k],vmu[k],vkfs[k],vkrevs[k],vHs[k],vUs[k],vGs[k],vdiffs[k],vCvave[k],vphi[k] = calcthermo(sim.domain,ssys.sol(t),t)
@@ -282,7 +286,7 @@ function rops(ssys::SystemSimulation,t)
     for inter in ssys.interfaces
         if inter isa FragmentBasedReactiveFilmGrowthInterfaceConstantT
             kfs,krevs=getkfskrevs(inter)
-            rops!(ropmat,inter.rxnarray,inter.fragmentbasedrxnarray,cstot,kfs,krevs,vV[inter.domaininds[1]],start)
+            rops!(ropmat,inter.rxnarray,inter.fragmentbasedrxnarray,cstot,kfs,krevs,vV[inter.domaininds[1]],inter.Mws,inter.domainfilm.indexes[1]:inter.domainfilm.indexes[2],inter.domainfilm.indexes[3],start)
             start += length(kfs) 
         elseif hasproperty(inter,:reactions)
             kfs,krevs=getkfskrevs(inter,vT[inter.domaininds[1]],vT[inter.domaininds[2]],vphi[inter.domaininds[1]],vphi[inter.domaininds[2]],vGs[inter.domaininds[1]],vGs[inter.domaininds[2]],cstot)
@@ -419,7 +423,7 @@ function rops!(ropvec,rarray,cs,kfs,krevs,V,start,ind)
 end
 
 
-function rops!(ropmat,rarray,fragmentbasedrxnarray,cs,kfs,krevs,V,start)
+function rops!(ropmat,rarray,fragmentbasedrxnarray,cs,kfs,krevs,V,Mws,fragmentindexes,massindex,start)
     numfragmentbasedreacprod, numrxns = size(fragmentbasedrxnarray)
     half = Int(numfragmentbasedreacprod/2)
     for i = 1:length(kfs)
@@ -428,12 +432,18 @@ function rops!(ropmat,rarray,fragmentbasedrxnarray,cs,kfs,krevs,V,start)
         for j = 1:half
             if fragmentbasedrxnarray[j,i] != 0
                 @fastmath ropmat[i+start,fragmentbasedrxnarray[j,i]] -= R
+                if !(fragmentbasedrxnarray[j,i] in fragmentindexes)
+                    ropmat[i+start,massindex] += R * Mws[fragmentbasedrxnarray[j,i]]
+                end
             end
         end
 
         for j = half+1:numfragmentbasedreacprod
             if fragmentbasedrxnarray[j,i] != 0
                 @fastmath ropmat[i+start,fragmentbasedrxnarray[j,i]] += R
+                if !(fragmentbasedrxnarray[j,i] in fragmentindexes)
+                    ropmat[i+start,massindex] -= R * Mws[fragmentbasedrxnarray[j,i]]
+                end
             end
         end
     end
