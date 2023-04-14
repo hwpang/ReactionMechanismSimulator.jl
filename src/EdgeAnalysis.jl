@@ -937,6 +937,7 @@ function identifyobjects!(sim,corespcsinds,corerxninds,edgespcsinds,
                     @inbounds tol = transitorydict[spcname]
                     @info "at time $t sec, reaction $rstr at a normalized transitory sensitivity from $spcname of $sens exceeded the threshold of $tol for moving to model core"
                 elseif newobjecttype[i] == "deadendradical"
+                    tol = deadendradicaltolerance
                     @info "at time $t sec, reaction $rstr at a net radical consumption/termination ratio of $val exceeded the threshold of $tol for moving to model core"
                 end
             end
