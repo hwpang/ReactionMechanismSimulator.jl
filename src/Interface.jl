@@ -529,11 +529,16 @@ function getkfskrevs(ri::FragmentBasedReactiveFilmGrowthInterfaceConstantT)
     return ri.kfs,ri.krevs
 end
 
-function evaluate(ri::FragmentBasedReactiveFilmGrowthInterfaceConstantT,dydt,domainfilm,Vfilm,cstot)
+function evaluate(ri::FragmentBasedReactiveFilmGrowthInterfaceConstantT, dydt, domainfilm, domain2::ConstantTLiqFilmDomain, Vfilm, cstot)
     kfs, krevs = getkfskrevs(ri)
-    addreactionratecontributions!(dydt,ri.fragmentbasedrxnarray,ri.rxnarray,cstot,kfs,krevs,Vfilm,domainfilm.indexes[3],ri.Mws,domainfilm.indexes[1]:domainfilm.indexes[2])
+    addreactionratecontributions!(dydt, ri.fragmentbasedrxnarray, ri.rxnarray, cstot, kfs, krevs, Vfilm, domainfilm.indexes[3], ri.Mws, domainfilm.indexes[1]:domainfilm.indexes[2])
     epsilon = ri.domain2.epsilon
     dydt[ri.domain2.indexes[3]] = dydt[domainfilm.indexes[3]] / domainfilm.rho / (1 - epsilon) * epsilon
+end
+
+function evaluate(ri::FragmentBasedReactiveFilmGrowthInterfaceConstantT, dydt, domainfilm, domain2, Vfilm, cstot)
+    kfs, krevs = getkfskrevs(ri)
+    addreactionratecontributions!(dydt, ri.fragmentbasedrxnarray, ri.rxnarray, cstot, kfs, krevs, Vfilm, domainfilm.indexes[3], ri.Mws, domainfilm.indexes[1]:domainfilm.indexes[2])
 end
 
 export evaluate
