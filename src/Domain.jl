@@ -820,6 +820,97 @@ end
 
 export FragmentBasedConstantTrhoDomain
 
+mutable struct ConstantTLiqFilmDomain{N<:AbstractPhase,S<:Integer,W<:Real,W2<:Real,I<:Integer,Q<:AbstractArray} <: AbstractConstantKDomain
+    phase::N
+    indexes::Q #assumed to be in ascending order
+    parameterindexes::Q
+    constantspeciesinds::Array{S,1}
+    T::W
+    epsilon::W
+    phi::W
+    kfs::Array{W,1}
+    krevs::Array{W,1}
+    kfsnondiff::Array{W,1}
+    efficiencyinds::Array{I,1}
+    Gs::Array{W,1}
+    rxnarray::Array{Int64,2}
+    mu::W
+    diffusivity::Array{W,1}
+    jacobian::Array{W,2}
+    sensitivity::Bool
+    alternativepformat::Bool
+    jacuptodate::MArray{Tuple{1},Bool,1,1}
+    t::MArray{Tuple{1},W2,1,1}
+    p::Array{W,1}
+    thermovariabledict::Dict{String,Int64}
+end
+function ConstantTLiqFilmDomain(; phase::Z, initialconds::Dict{X,E}, constantspecies::Array{X2,1}=Array{String,1}(),
+    sparse=false, sensitivity=false) where {E,X,X2,Z<:AbstractPhase,Q<:AbstractInterface,W<:Real}
+    #set conditions and initialconditions
+    T = 0.0
+    V = 0.0
+    P = 1.0e8
+    phi = 0.0
+    epsilon = 0.0
+    y0 = zeros(length(phase.species) + 1)
+    spnames = [x.name for x in phase.species]
+    for (key, val) in initialconds
+        if key == "T"
+            T = val
+        elseif key == "P"
+            throw(error("ConstantTLiqFilmDomain cannot specify P"))
+        elseif key == "V"
+            V = val
+            y0[end] = val
+        elseif key == "epsilon"
+            epsilon = val
+        else
+            ind = findfirst(isequal(key), spnames)
+            @assert typeof(ind) <: Integer "$key not found in species list: $spnames"
+            y0[ind] = val
+        end
+    end
+    @assert T != 0.0
+    @assert V != 0.0
+    @assert epsilon != 0.0
+
+    ns = y0[1:end-1]
+    N = sum(ns)
+
+    if length(constantspecies) > 0
+        spcnames = getfield.(phase.species, :name)
+        constspcinds = [findfirst(isequal(k), spcnames) for k in constantspecies]
+    else
+        constspcinds = Array{Int64,1}()
+    end
+    efficiencyinds = [rxn.index for rxn in phase.reactions if typeof(rxn.kinetics) <: AbstractFalloffRate && length(rxn.kinetics.efficiencies) > 0]
+    Gs = calcgibbs(phase, T)
+    if :solvent in fieldnames(typeof(phase)) && typeof(phase.solvent) != EmptySolvent
+        mu = phase.solvent.mu(T)
+    else
+        mu = 0.0
+    end
+    if phase.diffusionlimited
+        diffs = [x(T=T, mu=mu, P=P) for x in getfield.(phase.species, :diffusion)]
+    else
+        diffs = Array{Float64,1}()
+    end
+    P = 1.0e8  #essentiallly assuming this is a liquid
+    C = N / V
+    kfs, krevs = getkfkrevs(phase, T, P, C, N, ns, Gs, diffs, V, phi)
+    kfsnondiff = getkfs(phase, T, P, C, ns, V, phi)
+    p = vcat(Gs, kfsnondiff)
+    if sparse
+        jacobian = zeros(typeof(T), length(phase.species), length(phase.species))
+    else
+        jacobian = zeros(typeof(T), length(phase.species), length(phase.species))
+    end
+    rxnarray = getreactionindices(phase)
+    return ConstantTLiqFilmDomain(phase, [1, length(phase.species), length(phase.species) + 1], [1, length(phase.species) + length(phase.reactions)], constspcinds,
+        T, epsilon, phi, kfs, krevs, kfsnondiff, efficiencyinds, Gs, rxnarray, mu, diffs, jacobian, sensitivity, false, MVector(false), MVector(0.0), p, Dict{String,Int64}(["V" => length(phase.species) + 1])), y0, p
+end
+export ConstantTLiqFilmDomain
+
 @inline function calcthermo(d::ConstantTPDomain{W,Y},y::J,t::Q,p::W3=SciMLBase.NullParameters()) where {W3<:SciMLBase.NullParameters,W<:IdealGas,Y<:Integer,J<:Array{Float64,1},Q} #no parameter input
     ns = y[d.indexes[1]:d.indexes[2]]
     V = y[d.indexes[3]]
@@ -1662,6 +1753,83 @@ function calcthermo(d::FragmentBasedConstantTrhoDomain{W,Y},y::J,t::Q,p::Q2=SciM
     end
     kfs,krevs = getkfkrevs(d.phase,d.T,P,C,N,ns,Gs,d.diffusivity,V,0.0;kfs=kfsnondiff)
     return ns,cs,d.T,P,V,C,N,d.mu,kfs,krevs,Array{Float64,1}(),Array{Float64,1}(),Array{Float64,1}(),Array{Float64,1}(),0.0,Array{Float64,1}(),0.0
+end
+
+@inline function calcthermo(d::ConstantTLiqFilmDomain{W,Y}, y::J, t::Q, p::Q2=SciMLBase.NullParameters()) where {Q2<:Array{Float64,1},W<:IdealDiluteSolution,Y<:Integer,J<:Array{Float64,1},Q}
+    ns = y[d.indexes[1]:d.indexes[2]]
+    V = y[d.indexes[3]]
+    N = sum(ns)
+    cs = ns ./ V
+    C = N / V
+    P = 1.0e8
+    if !d.alternativepformat
+        @views nothermochg = d.Gs == p[d.parameterindexes[1]-1+1:d.parameterindexes[1]-1+length(d.phase.species)]
+        @views nokfchg = d.kfsnondiff == p[d.parameterindexes[1]-1+length(d.phase.species)+1:d.parameterindexes[1]-1+length(d.phase.species)+length(d.phase.reactions)]
+        if nothermochg && nokfchg
+            return ns, cs, d.T, P, V, C, N, d.mu, d.kfs, d.krevs, Array{Float64,1}(), Array{Float64,1}(), Array{Float64,1}(), Array{Float64,1}(), 0.0, Array{Float64,1}(), d.phi
+        elseif nothermochg
+            d.kfsnondiff = p[d.parameterindexes[1]-1+length(d.phase.species)+1:d.parameterindexes[1]-1+length(d.phase.species)+length(d.phase.reactions)]
+            d.kfs, d.krevs = getkfkrevs(d.phase, d.T, P, C, N, ns, d.Gs, d.diffusivity, V, d.phi; kfs=d.kfsnondiff)
+            return ns, cs, d.T, P, V, C, N, d.mu, d.kfs, d.krevs, Array{Float64,1}(), Array{Float64,1}(), Array{Float64,1}(), Array{Float64,1}(), 0.0, Array{Float64,1}(), d.phi
+        else
+            d.kfsnondiff = p[d.parameterindexes[1]-1+length(d.phase.species)+1:d.parameterindexes[1]-1+length(d.phase.species)+length(d.phase.reactions)]
+            d.Gs = p[d.parameterindexes[1]-1+1:d.parameterindexes[1]-1+length(d.phase.species)]
+            d.kfs, d.krevs = getkfkrevs(d.phase, d.T, P, C, N, ns, d.Gs, d.diffusivity, V, d.phi; kfs=d.kfsnondiff)
+            return ns, cs, d.T, P, V, C, N, d.mu, d.kfs, d.krevs, Array{Float64,1}(), Array{Float64,1}(), Array{Float64,1}(), Array{Float64,1}(), 0.0, Array{Float64,1}(), d.phi
+        end
+    else
+        @views nothermochg = d.Gs == d.p[1:length(d.phase.species)] .+ p[d.parameterindexes[1]-1+1:d.parameterindexes[1]-1+length(d.phase.species)]
+        @views nokfchg = d.kfsnondiff == d.p[length(d.phase.species)+1:length(d.phase.species)+length(d.phase.reactions)] .* p[d.parameterindexes[1]-1+length(d.phase.species)+1:d.parameterindexes[1]-1+length(d.phase.species)+length(d.phase.reactions)]
+        if nothermochg && nokfchg
+            return ns, cs, d.T, P, V, C, N, d.mu, d.kfs, d.krevs, Array{Float64,1}(), Array{Float64,1}(), Array{Float64,1}(), Array{Float64,1}(), 0.0, Array{Float64,1}(), d.phi
+        elseif nothermochg
+            d.kfsnondiff .= d.p[length(d.phase.species)+1:length(d.phase.species)+length(d.phase.reactions)] .* p[d.parameterindexes[1]-1+length(d.phase.species)+1:d.parameterindexes[1]-1+length(d.phase.species)+length(d.phase.reactions)]
+            d.kfs, d.krevs = getkfkrevs(d.phase, d.T, P, C, N, ns, d.Gs, d.diffusivity, V, d.phi; kfs=d.kfsnondiff)
+            return ns, cs, d.T, P, V, C, N, d.mu, d.kfs, d.krevs, Array{Float64,1}(), Array{Float64,1}(), Array{Float64,1}(), Array{Float64,1}(), 0.0, Array{Float64,1}(), d.phi
+        else
+            d.kfsnondiff .= d.p[length(d.phase.species)+1:length(d.phase.species)+length(d.phase.reactions)] .* p[d.parameterindexes[1]-1+length(d.phase.species)+1:d.parameterindexes[1]-1+length(d.phase.species)+length(d.phase.reactions)]
+            d.Gs .= d.p[1:length(d.phase.species)] .+ p[d.parameterindexes[1]-1+1:d.parameterindexes[1]-1+length(d.phase.species)]
+            d.kfs, d.krevs = getkfkrevs(d.phase, d.T, P, C, N, ns, d.Gs, d.diffusivity, V, d.phi; kfs=d.kfsnondiff)
+            return ns, cs, d.T, P, V, C, N, d.mu, d.kfs, d.krevs, Array{Float64,1}(), Array{Float64,1}(), Array{Float64,1}(), Array{Float64,1}(), 0.0, Array{Float64,1}(), d.phi
+        end
+    end
+
+end
+
+@inline function calcthermo(d::ConstantTLiqFilmDomain{W,Y}, y::Array{W2,1}, t::Q, p::Q2=SciMLBase.NullParameters()) where {W2<:ForwardDiff.Dual,Q2,W<:IdealDiluteSolution,Y<:Integer,J<:AbstractArray,Q} #autodiff y
+    ns = y[d.indexes[1]:d.indexes[2]]
+    V = y[d.indexes[3]]
+    N = sum(ns)
+    cs = ns ./ V
+    C = N / V
+    P = 1.0e8
+    if !d.alternativepformat
+        Gs = p[d.parameterindexes[1]-1+1:d.parameterindexes[1]-1+length(d.phase.species)]
+        kfsnondiff = convert(typeof(y), p[d.parameterindexes[1]-1+length(d.phase.species)+1:d.parameterindexes[1]-1+length(d.phase.species)+length(d.phase.reactions)])
+    else
+        Gs = d.p[1:length(d.phase.species)] .+ p[d.parameterindexes[1]-1+1:d.parameterindexes[1]-1+length(d.phase.species)]
+        kfsnondiff = convert(typeof(y), d.p[length(d.phase.species)+1:end] .* p[d.parameterindexes[1]-1+length(d.phase.species)+1:d.parameterindexes[1]-1+length(d.phase.species)+length(d.phase.reactions)])
+    end
+    kfs, krevs = getkfkrevs(d.phase, d.T, P, C, N, ns, Gs, d.diffusivity, V, d.phi; kfs=kfsnondiff)
+    return ns, cs, d.T, P, V, C, N, d.mu, kfs, krevs, Array{Float64,1}(), Array{Float64,1}(), Array{Float64,1}(), Array{Float64,1}(), 0.0, Array{Float64,1}(), d.phi
+end
+
+@inline function calcthermo(d::ConstantTLiqFilmDomain{W,Y}, y::J, t::Q, p::Q2=SciMLBase.NullParameters()) where {Q2,W<:IdealDiluteSolution,Y<:Integer,J<:AbstractArray,Q} #autodiff p
+    ns = y[d.indexes[1]:d.indexes[2]]
+    V = y[d.indexes[3]]
+    N = sum(ns)
+    cs = ns ./ V
+    C = N / V
+    P = 1.0e8
+    if !d.alternativepformat
+        Gs = p[d.parameterindexes[1]-1+1:d.parameterindexes[1]-1+length(d.phase.species)]
+        kfsnondiff = p[d.parameterindexes[1]-1+length(d.phase.species)+1:d.parameterindexes[1]-1+length(d.phase.species)+length(d.phase.reactions)]
+    else
+        Gs = d.p[1:length(d.phase.species)] .+ p[d.parameterindexes[1]-1+1:d.parameterindexes[1]-1+length(d.phase.species)]
+        kfsnondiff = d.p[length(d.phase.species)+1:end] .* p[d.parameterindexes[1]-1+length(d.phase.species)+1:d.parameterindexes[1]-1+length(d.phase.species)+length(d.phase.reactions)]
+    end
+    kfs, krevs = getkfkrevs(d.phase, d.T, P, C, N, ns, Gs, d.diffusivity, V, d.phi; kfs=kfsnondiff)
+    return ns, cs, d.T, P, V, C, N, d.mu, kfs, krevs, Array{Float64,1}(), Array{Float64,1}(), Array{Float64,1}(), Array{Float64,1}(), 0.0, Array{Float64,1}(), d.phi
 end
 
 export calcthermo

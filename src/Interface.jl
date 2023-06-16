@@ -532,6 +532,8 @@ end
 function evaluate(ri::FragmentBasedReactiveFilmGrowthInterfaceConstantT,dydt,domainfilm,Vfilm,cstot)
     kfs, krevs = getkfskrevs(ri)
     addreactionratecontributions!(dydt,ri.fragmentbasedrxnarray,ri.rxnarray,cstot,kfs,krevs,Vfilm,domainfilm.indexes[3],ri.Mws,domainfilm.indexes[1]:domainfilm.indexes[2])
+    epsilon = ri.domain2.epsilon
+    dydt[ri.domain2.indexes[3]] = dydt[domainfilm.indexes[3]] / domainfilm.rho / (1 - epsilon) * epsilon
 end
 
 export evaluate
