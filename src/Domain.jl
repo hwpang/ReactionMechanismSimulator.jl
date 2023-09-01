@@ -1755,7 +1755,17 @@ function calcthermo(d::FragmentBasedConstantTrhoDomain{W,Y},y::J,t::Q,p::Q2=SciM
     return ns,cs,d.T,P,V,C,N,d.mu,kfs,krevs,Array{Float64,1}(),Array{Float64,1}(),Array{Float64,1}(),Array{Float64,1}(),0.0,Array{Float64,1}(),0.0
 end
 
-@inline function calcthermo(d::ConstantTLiqFilmDomain{W,Y}, y::J, t::Q, p::Q2=SciMLBase.NullParameters()) where {Q2<:Array{Float64,1},W<:IdealDiluteSolution,Y<:Integer,J<:Array{Float64,1},Q}
+function calcthermo(d::ConstantTLiqFilmDomain{W,Y},y::J,t::Q,p::Q2=SciMLBase.NullParameters()) where {Q2<:SciMLBase.NullParameters,W<:IdealDiluteSolution,Y<:Integer,J<:AbstractArray,Q}
+    ns = y[d.indexes[1]:d.indexes[2]]
+    V = y[d.indexes[3]]
+    N = sum(ns)
+    cs = ns./V
+    C = N/V
+    P = 1.0e8
+    return ns,cs,d.T,P,V,C,N,d.mu,d.kfs,d.krevs,Array{Float64,1}(),Array{Float64,1}(),Array{Float64,1}(),Array{Float64,1}(),0.0,Array{Float64,1}(),0.0
+end
+
+function calcthermo(d::ConstantTLiqFilmDomain{W,Y}, y::J, t::Q, p::Q2=SciMLBase.NullParameters()) where {Q2<:Array{Float64,1},W<:IdealDiluteSolution,Y<:Integer,J<:Array{Float64,1},Q}
     ns = y[d.indexes[1]:d.indexes[2]]
     V = y[d.indexes[3]]
     N = sum(ns)
@@ -1793,10 +1803,9 @@ end
             return ns, cs, d.T, P, V, C, N, d.mu, d.kfs, d.krevs, Array{Float64,1}(), Array{Float64,1}(), Array{Float64,1}(), Array{Float64,1}(), 0.0, Array{Float64,1}(), d.phi
         end
     end
-
 end
 
-@inline function calcthermo(d::ConstantTLiqFilmDomain{W,Y}, y::Array{W2,1}, t::Q, p::Q2=SciMLBase.NullParameters()) where {W2<:ForwardDiff.Dual,Q2,W<:IdealDiluteSolution,Y<:Integer,J<:AbstractArray,Q} #autodiff y
+function calcthermo(d::ConstantTLiqFilmDomain{W,Y}, y::Array{W2,1}, t::Q, p::Q2=SciMLBase.NullParameters()) where {W2<:ForwardDiff.Dual,Q2,W<:IdealDiluteSolution,Y<:Integer,J<:AbstractArray,Q} #autodiff y
     ns = y[d.indexes[1]:d.indexes[2]]
     V = y[d.indexes[3]]
     N = sum(ns)
@@ -1814,7 +1823,7 @@ end
     return ns, cs, d.T, P, V, C, N, d.mu, kfs, krevs, Array{Float64,1}(), Array{Float64,1}(), Array{Float64,1}(), Array{Float64,1}(), 0.0, Array{Float64,1}(), d.phi
 end
 
-@inline function calcthermo(d::ConstantTLiqFilmDomain{W,Y}, y::J, t::Q, p::Q2=SciMLBase.NullParameters()) where {Q2,W<:IdealDiluteSolution,Y<:Integer,J<:AbstractArray,Q} #autodiff p
+function calcthermo(d::ConstantTLiqFilmDomain{W,Y}, y::J, t::Q, p::Q2=SciMLBase.NullParameters()) where {Q2,W<:IdealDiluteSolution,Y<:Integer,J<:AbstractArray,Q} #autodiff p
     ns = y[d.indexes[1]:d.indexes[2]]
     V = y[d.indexes[3]]
     N = sum(ns)

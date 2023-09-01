@@ -425,7 +425,7 @@ function getinterfaceignoremasstransferspcinds(domaingas,domainliq,ignoremasstra
     return indices
 end
 
-struct FragmentBasedReactiveFilmGrowthInterfaceConstantT{D1,D2,Q<:AbstractReaction,M1} <: AbstractReactiveInternalInterface
+mutable struct FragmentBasedReactiveFilmGrowthInterfaceConstantT{D1,D2,Q<:AbstractReaction,M1} <: AbstractReactiveInternalInterface
     domainfilm::D1
     domain2::D2
     reactions::Array{Q,1}
